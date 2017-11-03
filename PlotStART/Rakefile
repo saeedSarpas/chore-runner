@@ -1,0 +1,27 @@
+require "./../generic/log.rb"
+require "./../generic/names.rb"
+
+namespace "plotstart" do
+
+  EXEC = "PlotStART"
+
+  desc "Generating column density map"
+  task :column_density, [:inp, :out, :var, :ftype] do |t,args|
+    args.with_defaults(:var => "NHI", :ftype => "fits")
+
+    if args.inp.nil? or args.out.nil? or args.inp.empty? or args.out.empty?
+      error "input and output are mandatory parameters." \
+            " `$ rake \"p2c:run[input,output,...]\"`"
+      exit
+    end
+
+    command = "#{EXEC}"
+    command += " -inp #{args.inp} -out #{args.out}"
+    command += " -var #{var}" unless args.var.nil?
+    command += " -ftype #{ftype}" unless args.ftype.nil?
+
+    logfile = log_ext args.out
+
+    sh "#{command} | tee -a #{logfile}"
+  end
+end

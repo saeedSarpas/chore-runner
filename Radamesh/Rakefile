@@ -1,0 +1,120 @@
+require "./../generic/log.rb"
+require "./../generic/names.rb"
+
+namespace "radamesh" do
+
+  VER = 1
+  SUBVER = 3
+
+  EXEC = "Radamesh-#{VER}.#{SUBVER}_64"
+
+  desc "Running Radamesh simulation"
+  task :run, [:inp, :out, :boxsize, :redshift] do |t,args|
+    if args.inp.nil? or args.out.nil? or args.inp.empty? or args.out.empty?
+      error "input and output are mandatory parameters." \
+            " `$ rake \"p2c:run[input,output,...]\"`"
+      exit
+    end
+
+    @params["snapshot"]["DensityInputFile"] = "\"#{args.inp}\""
+    @params["snapshot"]["ComovingBoxSize"] = args.boxsize
+    @params["snapshot"]["InitialRedshift"] = args.redshift
+
+    paramfile = config_ext args.out
+    generate_default_parameter_file(paramfile)
+
+    sh "$EDITOR #{paramfile}"
+
+    logfile = log_ext args.out
+
+    sh "cat #{paramfile} >> #{logfile}"
+
+    sh "cd #{File.split(logfile)[0]} && #{EXEC} #{paramfile} | tee -a #{logfile}"
+  end
+
+
+  def generate_default_parameter_file(path)
+    puts path
+    File.open(path, "w") { |f|
+      @params.each do |name,section|
+        f.write("# [#{name}]\n")
+        section.each do |key,value|
+          f.write("#{key} = #{value}\n")
+        end
+        f.write("\n")
+      end
+    }
+  end
+
+
+  @params = {
+    "runtime" => {
+      "ActualRun" => ".false.",
+      "VersionID" => "" ,
+      "Verbosity" => "2",
+      "FinalRedshift" => "3.016",
+      "SimulationTime" => "0",
+      "InitCollEq" => ".false.",
+      "InitNtrFrac" => "1.",
+      "InitUVBEq" => ".true.",
+      "LightSpeedLimit" => ".true.",
+      "DoInitEvol" => ".true.",
+      "TimeStepFact" => "0.1",
+      "MinTimeStep" => "0.04",
+      "KeepBKG" => ".false.",
+      "StarThr" => "1.e19",
+      "MaxNtrFrac" => "0.0",
+    },
+    "species" => {
+      "NSpecies" => "3",
+    },
+    "snapshot" => {
+      "DensityInputFile" => "\"\"",
+      "ComovingBoxSize" => "25.0",
+      "InitialRedshift" => "3.016",
+    },
+    "cosmology" => {
+      "OmegaBaryonNow" => "0.0482519",
+      "OmegaCDMNow" => "0.307",
+      "OmegaLambdaNow" => "0.693",
+      "HubbleConstNow" => "67.77",
+    },
+    "background" => {
+      "Gamma_BKG" => "0.944E-12 0.557E-12 0.128E-13",
+      "HeatR_BKG" => "0.375e-11 0.422e-11 0.178e-12",
+      "UVB_SS" => ".true.",
+      "UVB_SSThr" => "0.005",
+    },
+    "sources" => {
+      "NSources" => "1",
+      "SourceCoords" => "0.5 0.5 0.5",
+      "SpectrumType" => "1",
+      "TotalIonRate" => "57.33",
+      "SpectrumSlope" => "1.57",
+      "InitHIIradius" => "1.e-4",
+      "OpAngle" => "0.25",
+    },
+    "ray tracing" => {
+      "NSpectralRegions" => "3",
+      "NSpectralBins" => "10 5 5",
+      "MinMaxEnergy" => "1 1.8088 1.8088 4 4 8",
+      "NRays" => "5",
+      "MaxTau" => "50 50 50",
+      "SafetyDist" => "10.0",
+      "InterpTauDiff" => "0.1 1.e9 1.e9",
+      "MinIntpDist" => "0.02",
+      "ConvThr" => "0.1",
+      "MinTau" => "0.1 1.e9 1.e9",
+      "MinTauDiff" => "0.1 1.e9 1.e9",
+      "MinTauCell" => "0.1 1.e9 1.e9",
+      "ATSFreq" => "5",
+      "ATSFact" => "1.e4",
+    },
+    "output" => {
+      "NTimeSteps" => "0",
+      "OutputFreqStep" => "0",
+      "NOutputs" => "0",
+      "OutputTimeStep" => "0",
+    }
+  }
+end
