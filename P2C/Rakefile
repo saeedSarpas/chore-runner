@@ -1,5 +1,6 @@
-require "./../generic/log.rb"
-require "./../generic/names.rb"
+require "./../Generic_funcs/log.rb"
+require "./../Generic_funcs/names.rb"
+require "./../Generic_funcs/paCage.rb"
 
 namespace "p2c" do
 
@@ -7,6 +8,10 @@ namespace "p2c" do
   SUBVER = 1
 
   EXEC = "P2C-#{VER}.#{SUBVER}"
+
+  DEVEL_DIR = "~/development"
+  LOCAL_DIR = "~/.local"
+
 
   desc "Running P2C to convert a particle snapshot to Chombo format"
   task :run, [:inp, :out, :npref, :basegrid, :cut_le, :cut_re] do |t,args|
@@ -36,4 +41,31 @@ namespace "p2c" do
 
     sh "#{command} | tee -a #{logfile}"
   end
+
+
+  desc "Compiling P2C application assuming HDF library is already installed"
+  task :compile do |t|
+    PaCage.cc("#{DEVEL_DIR}/paCage.new", ["High5", "Geagle"])
+    cc()
+  end
+
+
+  # Cloning, updating and compiling P2C application
+  def cc
+    p2c = "P2C"
+    expanded_dir = File.expand_path("#{DEVEL_DIR}")
+
+    if Dir.exist?("#{expanded_dir}/#{p2c}")
+      command = "cd #{expanded_dir}/#{p2c}"
+      command += " && git pull origin \"$(git_current_branch)\""
+    else
+      command = "mkdir -p #{expanded_dir}"
+      command += " && cd #{expanded_dir}"
+      command += " && git clone git@github.com:saeedSarpas/P2C.git"
+    end
+
+    system command
+    system "cd #{expanded_dir}/#{p2c} && make"
+  end
+
 end
