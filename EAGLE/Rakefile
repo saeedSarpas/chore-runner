@@ -1,0 +1,17 @@
+require 'matrix'
+require './../Generic_funcs/eagle_api.rb'
+
+namespace "eagle" do
+
+  desc "Downloading Halo catalogue, run it as: rake \"eagle:get[$EAGLE_PASS]\""
+  task :get, [:passwd, :dbname, :snapnum] do |t,args|
+    args.with_defaults(:dbname => "RefL0100N1504_Subhalo", :snapnum => "12")
+
+    keys, halos = EagleAPI.get(args.dbname, args.snapnum, args.passwd,
+                                where = ["SubGroupNumber = 0", "Mass > 1e12"],
+                                orderby = "Mass")
+
+    p Matrix[*halos].column(keys[:Mass])
+  end
+
+end

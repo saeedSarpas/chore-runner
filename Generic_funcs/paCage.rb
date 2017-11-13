@@ -1,7 +1,7 @@
 unless defined? paCage
 
   def paCage
-    return "paCage has been defined"
+    return "paCage has already been defined"
   end
 
   module PaCage
