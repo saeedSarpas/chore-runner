@@ -1,0 +1,23 @@
+
+namespace "hdf5" do
+
+  desc "Installing HDF5 1.8.4 locally"
+
+  task :install, [:major, :minor, :patch] do |t,args|
+    args.with_defaults(major: 1, minor: 8, patch: 4)
+
+    version = "hdf5-#{args.major}.#{args.minor}"
+    fullname = "#{version}.#{args.patch}"
+    tarfile = "#{fullname}.tar.gz"
+
+    ftp_url = "https://support.hdfgroup.org/ftp"
+
+    sh "wget #{ftp_url}/HDF5/releases/#{version}/#{fullname}/src/#{tarfile}"
+
+    sh "tar xf #{tarfile} && cd #{fullname} && mkdir -p build && cd build" \
+       " && ./../configure --prefix=${HOME}/.local --enable-fortran" \
+       " && make && make install"
+
+    sh "rm -rfv #{fullname}*"
+  end
+end
