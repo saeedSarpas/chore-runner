@@ -4,10 +4,10 @@ require "./../Generic_funcs/paCage.rb"
 
 namespace "p2c" do
 
-  VER = 1
-  SUBVER = 1
+  P2C_VER = 1
+  P2C_SUBVER = 1
 
-  EXEC = "P2C-#{VER}.#{SUBVER}"
+  P2C = "P2C-#{P2C_VER}.#{P2C_SUBVER}"
 
   DEVEL_DIR = "~/development"
   LOCAL_DIR = "~/.local"
@@ -29,7 +29,7 @@ namespace "p2c" do
     end
 
 
-    command = "#{EXEC}"
+    command = "#{P2C}"
     command += " -inp #{args.inp} -out #{args.out}"
     command += " -npref #{args.npref}" unless args.npref.nil?
     command += " -base_grid #{args.basegrid}" unless args.basegrid.nil?
@@ -37,7 +37,7 @@ namespace "p2c" do
 
     logfile = log_ext args.out
 
-    File.open(logfile, "a") { |f| f.wirte command }
+    File.open(logfile, "a") { |f| f.write command }
 
     sh "#{command} | tee -a #{logfile}"
   end

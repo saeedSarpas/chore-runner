@@ -1,15 +1,17 @@
-require "./../generic/log.rb"
-require "./../generic/names.rb"
+require "./../Generic_funcs/log.rb"
+require "./../Generic_funcs/names.rb"
 
-namespace "radamesh" do
+namespace "radamesh" do |ns|
 
-  VER = 1
-  SUBVER = 3
+  RADAMESH_VER = 1
+  RADAMESH_SUBVER = 3
 
-  EXEC = "Radamesh-#{VER}.#{SUBVER}_64"
+  RADAMESH = "Radamesh-#{RADAMESH_VER}.#{RADAMESH_SUBVER}_64"
 
   desc "Running Radamesh simulation"
-  task :run, [:inp, :out, :boxsize, :redshift] do |t,args|
+  task :run, [:inp, :out, :boxsize, :redshift, :check_params] do |t,args|
+    args.with_defaults(:check_params => FALSE)
+
     if args.inp.nil? or args.out.nil? or args.inp.empty? or args.out.empty?
       error "input and output are mandatory parameters." \
             " `$ rake \"p2c:run[input,output,...]\"`"
@@ -19,17 +21,21 @@ namespace "radamesh" do
     @params["snapshot"]["DensityInputFile"] = "\"#{args.inp}\""
     @params["snapshot"]["ComovingBoxSize"] = args.boxsize
     @params["snapshot"]["InitialRedshift"] = args.redshift
+    @params["runtime"]["VersionID"] = File.basename args.out
+    @params["runtime"]["FinalRedshift"] = args.redshift
 
     paramfile = config_ext args.out
     generate_default_parameter_file(paramfile)
 
-    sh "$EDITOR #{paramfile}"
+    if args.check_params
+      sh "$EDITOR #{paramfile}"
+    end
 
     logfile = log_ext args.out
 
     sh "cat #{paramfile} >> #{logfile}"
 
-    sh "cd #{File.split(logfile)[0]} && #{EXEC} #{paramfile} | tee -a #{logfile}"
+    sh "cd #{File.split(logfile)[0]} && #{RADAMESH} ./#{File.basename paramfile} | tee -a #{logfile}"
   end
 
 
@@ -52,7 +58,7 @@ namespace "radamesh" do
       "ActualRun" => ".false.",
       "VersionID" => "" ,
       "Verbosity" => "2",
-      "FinalRedshift" => "3.016",
+      "FinalRedshift" => "",
       "SimulationTime" => "0",
       "InitCollEq" => ".false.",
       "InitNtrFrac" => "1.",
@@ -111,9 +117,9 @@ namespace "radamesh" do
       "ATSFact" => "1.e4",
     },
     "output" => {
-      "NTimeSteps" => "0",
+      "NTimeSteps" => "1",
       "OutputFreqStep" => "0",
-      "NOutputs" => "0",
+      "NOutputs" => "1",
       "OutputTimeStep" => "0",
     }
   }

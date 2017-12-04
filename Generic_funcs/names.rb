@@ -8,4 +8,9 @@ unless defined? log_ext
   def config_ext(base)
     return "#{base}.config"
   end
+
+
+  def chombo_ext(base)
+    return "#{base}.chombo.hdf5"
+  end
 end

@@ -1,0 +1,20 @@
+namespace "python" do
+  PYTHON_MAJOR = 2
+  PYTHON_MINOR = 7
+  PYTHON_PATCH = 14
+
+  PYTHON_VERSION = "#{PYTHON_MAJOR}.#{PYTHON_MINOR}.#{PYTHON_PATCH}"
+
+  task :install, [:local_dir] do |t,args|
+    args.with_defaults(:local_dir => "/net/theia/scratch/saeed/.local")
+    sh "mkdir -p ~/.tmp"
+
+    sh "wget https://www.python.org/ftp/python/#{PYTHON_VERSION}/Python-#{PYTHON_VERSION}.tgz" \
+       " -O ~/.tmp/Python-#{PYTHON_VERSION}.tgz"
+    sh "cd ~/.tmp && tar xf Python-#{PYTHON_VERSION}.tgz"
+    sh "cd ~/.tmp/Python-#{PYTHON_VERSION} && mkdir -p build"
+    sh "cd ~/.tmp/Python-#{PYTHON_VERSION}/build" \
+       " && ./../configure --prefix=#{args.local_dir} --enable-unicode=ucs4 "\
+       " && make && make install"
+  end
+end

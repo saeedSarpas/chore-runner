@@ -51,3 +51,6 @@ build-iPhoneSimulator/
 
 # EAGLE API output
 *.txt
+
+# Gemfile
+Gemfile.lock
