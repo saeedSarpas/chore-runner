@@ -1,0 +1,97 @@
+namespace "visit" do
+
+  VISIT = "visit"
+
+  desc "Generate Pseudocolor map"
+  task :pseudocolor_sliced, [:input, :plugin, :output, :var, :minval, :maxval,
+                             :scaling, :sliced, :axis, :percent, :width,
+                             :height] do |t,args|
+    args.with_defaults(:sliced => true, :axis => "ZAxis", :percent => 50,
+                       :width => 1024, :height => 1024)
+
+    file = "./script.py"
+
+    self.init(file)
+    self.open_database(file, args.input, args.plugin)
+    self.add_pseudocolor(file, args.var, args.minval, args.maxval, args.scaling)
+    self.add_slice(file, args.percent, args.axis) if args.sliced
+    self.draw_plot(file)
+    self.save_window(file, args.width, args.height, args.output)
+    self.close_database(file, args.input)
+
+    sh "#{VISIT} -cli -nowin -s #{file}"
+
+    File.delete(file)
+    File.delete("./visitlog.py") if File.exist? "./visitlog.py"
+  end
+
+  def self.init(file)
+    File.open(file, "w") { |f|
+      f.write("#!/usr/bin/env python\n")
+    }
+  end
+
+  def self.open_database(file, input, plugin)
+    File.open(file, "a") { |f|
+      f.write("OpenDatabase(\"#{input}\", 0, \"#{plugin}\")\n")
+    }
+  end
+
+  def self.add_pseudocolor(file, var, minval, maxval, scaling)
+    File.open(file, "a") { |f|
+      f.write("AddPlot(\"Pseudocolor\", \"#{var}\")\n")
+      f.write("p = PseudocolorAttributes()\n")
+      f.write("p.minFlag = 1\n")
+      f.write("p.min = #{minval} \n")
+      f.write("p.maxFlag = 1\n")
+      f.write("p.max = #{maxval} \n")
+      f.write("p.scaling = p.Log\n") if scaling.downcase == "log"
+      f.write("p.scaling = p.Linear\n") if scaling.downcase == "linear"
+      f.write("p.scaling = p.Skew\n") if scaling.downcase == "skew"
+      f.write("p.colorTableName = \"hot_desaturated\"\n")
+      f.write("SetPlotOptions(p)\n")
+    }
+  end
+
+  def self.add_slice(file, percent, axis)
+    File.open(file, "a") { |f|
+      f.write("AddOperator(\"Slice\")\n")
+      f.write("s = SliceAttributes()\n")
+      f.write("s.originType = s.Percent\n")
+      f.write("s.originPoint = (0, 0, 0)\n")
+      f.write("s.originPercent = #{percent}\n")
+      f.write("s.axisType = s.XAxis\n") if axis.downcase == "xaxis"
+      f.write("s.axisType = s.YAxis\n") if axis.downcase == "yaxis"
+      f.write("s.axisType = s.ZAxis\n") if axis.downcase == "zaxis"
+      f.write("s.project2d = 1\n")
+      f.write("SetOperatorOptions(s)\n")
+    }
+  end
+
+  def self.draw_plot(file)
+    File.open(file, "a") { |f|
+      f.write("DrawPlots()\n")
+    }
+  end
+
+  def self.save_window(file, width, height, output)
+    File.open(file, "a") { |f|
+      f.write("swatts = SaveWindowAttributes()\n")
+      f.write("swatts.format = swatts.PNG\n")
+      f.write("swatts.width = #{width}\n")
+      f.write("swatts.height = #{height}\n")
+      f.write("swatts.fileName = \"#{output}\"\n")
+      f.write("SetSaveWindowAttributes(swatts)\n")
+
+      f.write("SaveWindow()\n")
+    }
+  end
+
+  def self.close_database(file, input)
+    File.open(file, "a") { |f|
+      f.write("DeleteAllPlots()\n")
+      f.write("CloseDatabase(\"#{input}\")\n")
+      f.write("exit()\n")
+    }
+  end
+end

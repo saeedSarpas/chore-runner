@@ -6,6 +6,7 @@ require "./../Generic_funcs/cosmo.rb"
 import './../P2C/Rakefile'
 import './../Radamesh/Rakefile'
 import './../PlotStART/Rakefile'
+import './../VisIt/Rakefile'
 
 namespace "eagle" do
 
@@ -35,11 +36,14 @@ namespace "eagle" do
     first_snap = inp.dup
     first_snap["%d"] = "0"
 
-    output_dir = "#{EAGLE_RESULT_DIR}/#{args.simname}/#{args.snapdir}/surface_brightness"
-    sh "mkdir -p #{output_dir}"
+    sb_dir = "#{EAGLE_RESULT_DIR}/#{args.simname}/#{args.snapdir}/surface_brightness"
+    sh "mkdir -p #{sb_dir}"
+
+    plots_dir = "#{EAGLE_RESULT_DIR}/#{args.simname}/#{args.snapdir}/plots"
+    sh "mkdir -p #{plots_dir}"
 
     for i in 0..60
-      R_cMpc = 4 * halos[i][keys[:HalfMassRad_DM]].to_f / 1000
+      R_cMpc = 10 * halos[i][keys[:HalfMassRad_DM]].to_f / 1000
 
       xmin = (halos[i][keys[:CentreOfMass_x]].to_f - R_cMpc) * cosmo.hubble
       ymin = (halos[i][keys[:CentreOfMass_y]].to_f - R_cMpc) * cosmo.hubble
@@ -59,25 +63,42 @@ namespace "eagle" do
 
       npref = 8
 
-      base_path = "#{output_dir}/#{"%03d" % i}-#{"%.2E" % halos[i][keys[:Mass]].to_f}-#{npref}-#{base_grid}"
+      sb_path = "#{sb_dir}/#{"%03d" % i}-#{halos[i][keys[:GalaxyID]]}-" \
+                "#{"%.2E" % halos[i][keys[:Mass]].to_f}-#{npref}-#{base_grid}"
+      plots_path = "#{plots_dir}/#{"%03d" % i}-#{halos[i][keys[:GalaxyID]]}-" \
+                   "#{"%.2E" % halos[i][keys[:Mass]].to_f}-#{npref}-#{base_grid}"
 
-      output_p2c = chombo_ext base_path
+      output_p2c = chombo_ext sb_path
 
-      Rake::Task["p2c:run"].invoke("#{inp}","#{output_p2c}",npref,base_grid,"#{cut_le}","#{cut_re}")
+      Rake::Task["p2c:run"].invoke(
+        "#{inp}", "#{output_p2c}", npref, base_grid, "#{cut_le}", "#{cut_re}")
       Rake::Task["p2c:run"].reenable
 
       boxsize = (`python ./read_attrs.py #{output_p2c} / ComovingBoxSize`).to_f
 
-      output_radamesh = "#{base_path}-#{"%.2E" % boxsize}-radamesh"
+      output_radamesh = "#{sb_path}-#{"%.2E" % boxsize}-radamesh"
 
-      Rake::Task["radamesh:run"].invoke("#{output_p2c}","#{output_radamesh}",boxsize.to_f,redshift.to_f)
+      Rake::Task["radamesh:run"].invoke(
+        "#{output_p2c}", "#{output_radamesh}", boxsize, redshift)
       Rake::Task["radamesh:run"].reenable
 
-      output_radamesh = "#{output_dir}/SO.#{File.basename output_radamesh}.ts0000"
-      output_sb = "#{base_path}-#{"%.2E" % boxsize}-surface-brightness.fits"
+      output_radamesh = "#{sb_dir}/SO.#{File.basename output_radamesh}.ts0000"
 
-      Rake::Task["plotstart:surface_brightness"].invoke("#{output_radamesh}","#{output_sb}")
+      Rake::Task["visit:pseudocolor_sliced"].invoke(
+        "#{output_radamesh}", "Chombo", "#{plots_path}-#{"%.2E" % boxsize}-density",
+        "density", "1.e-3", "1.e3", "Log", true, "ZAxis", "50", "1024", "1024")
+
+      Rake::Task["visit:pseudocolor_sliced"].invoke(
+        "#{output_radamesh}", "Chombo", "#{plots_path}-#{"%.2E" % boxsize}-temperature",
+        "temperature", "1.e4", "1.e7", "Log", true, "ZAxis", "50", "1024", "1024")
+
+      output_sb = "#{sb_path}-#{"%.2E" % boxsize}-surface-brightness.fits"
+
+      Rake::Task["plotstart:surface_brightness"].invoke(
+        "#{output_radamesh}", "#{output_sb}")
       Rake::Task["plotstart:surface_brightness"].reenable
+
+      # Placeholder for the fits file
     end
   end
 end
