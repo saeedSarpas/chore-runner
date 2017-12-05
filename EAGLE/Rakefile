@@ -11,6 +11,7 @@ namespace "eagle" do
 
   EAGLE_SNAP_DIR = "/net/theia/scratch/EAGLE_snapshots"
   EAGLE_RESULT_DIR = "/net/theia/scratch/saeed/Results"
+  MUSE_pixels_cMpc = 1.58 * (1 + 3) / 1000 # cMpc at z ~ 3
 
   desc "Downloading Halo catalogue, run it as:" \
        " rake \"eagle:surface_brightness[$EAGLE_PASS]\""
@@ -27,15 +28,19 @@ namespace "eagle" do
 
     cosmo = Cosmo.new :planck13
 
-    R_cMpc = 4 * halos[0][keys[:HalfMassRad_DM]].to_f / 1000
-
     snap_basename = args.snapdir.dup
     snap_basename["snapshot"] = "snap"
 
     inp = "#{EAGLE_SNAP_DIR}/#{args.simname}/#{args.snapdir}/#{snap_basename}.%d.hdf5"
-    out_dir = "#{EAGLE_RESULT_DIR}/#{args.simname}/#{args.snapdir}/surface_brightness"
+    first_snap = inp.dup
+    first_snap["%d"] = "0"
+
+    output_dir = "#{EAGLE_RESULT_DIR}/#{args.simname}/#{args.snapdir}/surface_brightness"
+    sh "mkdir -p #{output_dir}"
 
     for i in 0..60
+      R_cMpc = 4 * halos[i][keys[:HalfMassRad_DM]].to_f / 1000
+
       xmin = (halos[i][keys[:CentreOfMass_x]].to_f - R_cMpc) * cosmo.hubble
       ymin = (halos[i][keys[:CentreOfMass_y]].to_f - R_cMpc) * cosmo.hubble
       zmin = (halos[i][keys[:CentreOfMass_z]].to_f - R_cMpc) * cosmo.hubble
@@ -47,24 +52,28 @@ namespace "eagle" do
       cut_le = "#{xmin},#{ymin},#{zmin}"
       cut_re = "#{xmax},#{ymax},#{zmax}"
 
-      base_grid = 128
+      redshift = (`python ./read_attrs.py #{first_snap} Header Redshift`).to_f
+
+      pixel_size_cMpc = MUSE_pixels_cMpc / (1 + 3) * (1 + redshift)
+      base_grid = 2**(Math.log2(2 * R_cMpc / pixel_size_cMpc).floor + 1)
+
       npref = 8
 
-      base_path = "#{out_dir}/#{"%03d" % i}-#{"%.2E" % halos[i][keys[:Mass]].to_f}-#{npref}-#{base_grid}"
+      base_path = "#{output_dir}/#{"%03d" % i}-#{"%.2E" % halos[i][keys[:Mass]].to_f}-#{npref}-#{base_grid}"
+
       output_p2c = chombo_ext base_path
 
       Rake::Task["p2c:run"].invoke("#{inp}","#{output_p2c}",npref,base_grid,"#{cut_le}","#{cut_re}")
       Rake::Task["p2c:run"].reenable
 
-      boxsize = `python ./read_attrs.py #{output_p2c} / ComovingBoxSize`
-      redshift = `python ./read_attrs.py #{output_p2c} / Redshift`
+      boxsize = (`python ./read_attrs.py #{output_p2c} / ComovingBoxSize`).to_f
 
       output_radamesh = "#{base_path}-#{"%.2E" % boxsize}-radamesh"
 
       Rake::Task["radamesh:run"].invoke("#{output_p2c}","#{output_radamesh}",boxsize.to_f,redshift.to_f)
       Rake::Task["radamesh:run"].reenable
 
-      output_radamesh = "#{out_dir}/SO.#{File.basename output_radamesh}.ts0000"
+      output_radamesh = "#{output_dir}/SO.#{File.basename output_radamesh}.ts0000"
       output_sb = "#{base_path}-#{"%.2E" % boxsize}-surface-brightness.fits"
 
       Rake::Task["plotstart:surface_brightness"].invoke("#{output_radamesh}","#{output_sb}")
