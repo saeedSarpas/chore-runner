@@ -2,26 +2,88 @@ namespace "visit" do
 
   VISIT = "visit"
 
-  desc "Generate Pseudocolor map"
-  task :pseudocolor_sliced, [:input, :plugin, :output, :var, :minval, :maxval,
-                             :scaling, :sliced, :axis, :percent, :width,
-                             :height] do |t,args|
-    args.with_defaults(:sliced => true, :axis => "ZAxis", :percent => 50,
-                       :width => 1024, :height => 1024)
+  desc "Generating sliced color map"
+  task :color_slice, [:input, :plugin,
+                      :var, :minval, :maxval, :scale,
+                      :axis, :percent,
+                      :output, :width, :height
+                     ] do |t,args|
 
-    file = "./script.py"
+    file = "./#{File.basename args.input}-#{args.var}.py"
 
     self.init(file)
     self.open_database(file, args.input, args.plugin)
-    self.add_pseudocolor(file, args.var, args.minval, args.maxval, args.scaling)
-    self.add_slice(file, args.percent, args.axis) if args.sliced
+    self.add_pseudocolor(file, args.var, args.minval, args.maxval, args.scale)
+    self.add_slice(file, args.axis, args.percent)
     self.draw_plot(file)
     self.save_window(file, args.width, args.height, args.output)
     self.close_database(file, args.input)
 
-    sh "#{VISIT} -cli -nowin -s #{file}"
+    self.run_script(file)
+  end
 
-    File.delete(file)
+  desc "Generating projected color map"
+  task :color_projected, [:input, :plugin,
+                          :var, :minval, :maxval, :scale,
+                          :axis,
+                          :output, :width, :height
+                         ] do |t,args|
+
+    file = "./#{File.basename args.input}-#{args.var}.py"
+
+    self.init(file)
+    self.open_database(file, args.input, args.plugin)
+    self.add_pseudocolor(file, args.var, args.minval, args.maxval, args.scale)
+    self.add_projection(file, args.axis)
+    self.draw_plot(file)
+    self.save_window(file, args.width, args.height, args.output)
+    self.close_database(file, args.input)
+
+    self.run_script(file)
+  end
+
+  desc "Generating smoothed projected color map"
+  task :color_amr_smoothed_projected, [:input, :plugin,
+                                       :var, :minval, :maxval, :scale,
+                                       :axis,
+                                       :output, :width, :height
+                                      ] do |t,args|
+
+    file = "./#{File.basename args.input}-#{args.var}.py"
+
+    self.init(file)
+    self.open_database(file, args.input, args.plugin)
+    self.add_pseudocolor(file, args.var, args.minval, args.maxval, args.scale)
+    self.add_amr_smoothing(file)
+    self.add_projection(file, args.axis)
+    self.draw_plot(file)
+    self.save_window(file, args.width, args.height, args.output)
+    self.close_database(file, args.input)
+
+    self.run_script(file)
+  end
+
+  desc "Generating color map from fits files"
+  task :fits, [:input,
+               :var, :minval, :maxval, :scale,
+               :output, :width, :height] do |t, args|
+
+    file = "./#{File.basename args.input}-#{args.var}.py"
+
+    self.init(file)
+    self.open_database(file, args.input, "FITS")
+    self.add_pseudocolor(file, args.var, args.minval, args.maxval, args.scale)
+    self.draw_plot(file)
+    self.save_window(file, args.width, args.height, args.output)
+    self.close_database(file, args.input)
+
+    self.run_script(file)
+  end
+
+  def self.run_script(script_file)
+    sh "#{VISIT} -cli -nowin -s #{script_file}"
+
+    File.delete(script_file)
     File.delete("./visitlog.py") if File.exist? "./visitlog.py"
   end
 
@@ -37,7 +99,7 @@ namespace "visit" do
     }
   end
 
-  def self.add_pseudocolor(file, var, minval, maxval, scaling)
+  def self.add_pseudocolor(file, var, minval, maxval, scale)
     File.open(file, "a") { |f|
       f.write("AddPlot(\"Pseudocolor\", \"#{var}\")\n")
       f.write("p = PseudocolorAttributes()\n")
@@ -45,26 +107,60 @@ namespace "visit" do
       f.write("p.min = #{minval} \n")
       f.write("p.maxFlag = 1\n")
       f.write("p.max = #{maxval} \n")
-      f.write("p.scaling = p.Log\n") if scaling.downcase == "log"
-      f.write("p.scaling = p.Linear\n") if scaling.downcase == "linear"
-      f.write("p.scaling = p.Skew\n") if scaling.downcase == "skew"
+      f.write("p.scaling = p.Log\n") if scale.downcase == "log"
+      f.write("p.scaling = p.Linear\n") if scale.downcase == "linear"
+      f.write("p.scaling = p.Skew\n") if scale.downcase == "skew"
       f.write("p.colorTableName = \"hot_desaturated\"\n")
       f.write("SetPlotOptions(p)\n")
     }
   end
 
-  def self.add_slice(file, percent, axis)
+  def self.add_slice(file, axis, percent)
     File.open(file, "a") { |f|
       f.write("AddOperator(\"Slice\")\n")
       f.write("s = SliceAttributes()\n")
       f.write("s.originType = s.Percent\n")
       f.write("s.originPoint = (0, 0, 0)\n")
       f.write("s.originPercent = #{percent}\n")
-      f.write("s.axisType = s.XAxis\n") if axis.downcase == "xaxis"
-      f.write("s.axisType = s.YAxis\n") if axis.downcase == "yaxis"
-      f.write("s.axisType = s.ZAxis\n") if axis.downcase == "zaxis"
+      f.write("s.axisType = s.XAxis\n") if axis.downcase == "x"
+      f.write("s.axisType = s.YAxis\n") if axis.downcase == "y"
+      f.write("s.axisType = s.ZAxis\n") if axis.downcase == "z"
       f.write("s.project2d = 1\n")
       f.write("SetOperatorOptions(s)\n")
+    }
+  end
+
+  def self.add_rotation(file, x, y, z, deg)
+    File.open(file, "a") { |f|
+      f.write("AddOperator(\"Transform\", 1)\n")
+      f.write("t = TransformAttributes()\n")
+      f.write("t.doRotate = 1\n")
+      f.write("t.rotateOrigin = (#{x}, #{y}, #{z})\n")
+      f.write("t.rotateAxis = (0, 0, 1)\n")
+      f.write("t.rotateAmount = #{deg}\n")
+      f.write("t.rotateType = TransformAtts.Deg\n")
+      f.write("SetOperatorOptions(TransformAtts, 1)\n")
+    }
+  end
+
+  def self.add_projection(file, axis)
+    File.open(file, "a") { |f|
+      f.write("AddOperator(\"Project\", 1)\n")
+      f.write("pr = ProjectAttributes()\n")
+      f.write("pr.projectionType = pr.ZYCartesian\n") if axis.downcase == "x"
+      f.write("pr.projectionType = pr.XZCartesian\n") if axis.downcase == "y"
+      f.write("pr.projectionType = pr.XYCartesian\n") if axis.downcase == "z"
+      f.write("pr.vectorTransformMethod = pr.AsDirection\n")
+      f.write("SetOperatorOptions(pr, 1)\n")
+    }
+  end
+
+  def self.add_amr_smoothing(file)
+    File.open(file, "a") { |f|
+      f.write("AddOperator(\"AMRStitchCell\", 1)\n")
+      f.write("a = AMRStitchCellAttributes()\n")
+      f.write("a.CreateCellsOfType = a.DualGridAndStitchCells\n")
+      f.write("SetOperatorOptions(a, 1)\n")
     }
   end
 

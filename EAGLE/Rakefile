@@ -1,4 +1,5 @@
 require 'matrix'
+require 'parallel'
 require './../Generic_funcs/eagle_api.rb'
 require './../Generic_funcs/names.rb'
 require "./../Generic_funcs/cosmo.rb"
@@ -36,14 +37,17 @@ namespace "eagle" do
     first_snap = inp.dup
     first_snap["%d"] = "0"
 
-    sb_dir = "#{EAGLE_RESULT_DIR}/#{args.simname}/#{args.snapdir}/surface_brightness"
+    sb_dir = "#{EAGLE_RESULT_DIR}/#{args.simname}/#{args.snapdir}/raw_data"
     sh "mkdir -p #{sb_dir}"
 
     plots_dir = "#{EAGLE_RESULT_DIR}/#{args.simname}/#{args.snapdir}/plots"
     sh "mkdir -p #{plots_dir}"
 
-    for i in 0..60
-      R_cMpc = 10 * halos[i][keys[:HalfMassRad_DM]].to_f / 1000
+    redshift = (`python ./read_attrs.py #{first_snap} Header Redshift`).to_f
+
+    results = Parallel.each((0..0), in_processes: 12) do |i|
+      p i
+      R_cMpc = 4 * halos[i][keys[:HalfMassRad_DM]].to_f * (1 + redshift) / 1000
 
       xmin = (halos[i][keys[:CentreOfMass_x]].to_f - R_cMpc) * cosmo.hubble
       ymin = (halos[i][keys[:CentreOfMass_y]].to_f - R_cMpc) * cosmo.hubble
@@ -56,49 +60,92 @@ namespace "eagle" do
       cut_le = "#{xmin},#{ymin},#{zmin}"
       cut_re = "#{xmax},#{ymax},#{zmax}"
 
-      redshift = (`python ./read_attrs.py #{first_snap} Header Redshift`).to_f
-
       pixel_size_cMpc = MUSE_pixels_cMpc / (1 + 3) * (1 + redshift)
-      base_grid = 2**(Math.log2(2 * R_cMpc / pixel_size_cMpc).floor + 1)
+      grid = 2**(Math.log2(2 * R_cMpc / pixel_size_cMpc).floor)
 
       npref = 8
 
       sb_path = "#{sb_dir}/#{"%03d" % i}-#{halos[i][keys[:GalaxyID]]}-" \
-                "#{"%.2E" % halos[i][keys[:Mass]].to_f}-#{npref}-#{base_grid}"
-      plots_path = "#{plots_dir}/#{"%03d" % i}-#{halos[i][keys[:GalaxyID]]}-" \
-                   "#{"%.2E" % halos[i][keys[:Mass]].to_f}-#{npref}-#{base_grid}"
+                "#{"%.2E" % halos[i][keys[:Mass]].to_f}-#{npref}-#{grid}"
 
       output_p2c = chombo_ext sb_path
 
       Rake::Task["p2c:run"].invoke(
-        "#{inp}", "#{output_p2c}", npref, base_grid, "#{cut_le}", "#{cut_re}")
+        "#{inp}", "#{output_p2c}", npref, grid, "#{cut_le}", "#{cut_re}")
       Rake::Task["p2c:run"].reenable
 
       boxsize = (`python ./read_attrs.py #{output_p2c} / ComovingBoxSize`).to_f
 
-      output_radamesh = "#{sb_path}-#{"%.2E" % boxsize}-radamesh"
+      plots_path = "#{plots_dir}/#{"%03d" % i}-#{halos[i][keys[:GalaxyID]]}-" \
+                   "#{"%.2E" % halos[i][keys[:Mass]].to_f}-#{npref}-" \
+                   "#{grid}-#{"%.2f" % boxsize}"
+
+      Rake::Task["visit:color_slice"].invoke(
+        "#{output_p2c}", "Chombo",
+        "density", "1.e-1", "1.e3", "Log",
+        "z", 50,
+        "#{plots_path}-slice-50-density", 1024, 1024)
+      Rake::Task["visit:color_slice"].reenable
+
+      Rake::Task["visit:color_slice"].invoke(
+        "#{output_p2c}", "Chombo",
+        "temperature", "1.e4", "1.e7", "Log",
+        "z", 50,
+        "#{plots_path}-slice-50-temperature", 1024, 1024)
+      Rake::Task["visit:color_slice"].reenable
+
+      Rake::Task["visit:color_amr_smoothed_projected"].invoke(
+        "#{output_p2c}", "Chombo",
+        "density", "1.e-1", "1.e3", "Log",
+        "z",
+        "#{plots_path}-smoothed-projected-density", 1024, 1024)
+      Rake::Task["visit:color_amr_smoothed_projected"].reenable
+
+      Rake::Task["visit:color_amr_smoothed_projected"].invoke(
+        "#{output_p2c}", "Chombo",
+        "temperature", "1.e4", "1.e7", "Log",
+        "z",
+        "#{plots_path}-smoothed-projected-temperature", 1024, 1024)
+      Rake::Task["visit:color_amr_smoothed_projected"].reenable
+
+      output_radamesh = "#{sb_path}-#{"%.2f" % boxsize}-radamesh"
 
       Rake::Task["radamesh:run"].invoke(
         "#{output_p2c}", "#{output_radamesh}", boxsize, redshift)
       Rake::Task["radamesh:run"].reenable
 
-      output_radamesh = "#{sb_dir}/SO.#{File.basename output_radamesh}.ts0000"
+      so_radamesh = "#{sb_dir}/SO.#{File.basename output_radamesh}.ts0000"
+      output_radamesh_final = chombo_ext output_radamesh
 
-      Rake::Task["visit:pseudocolor_sliced"].invoke(
-        "#{output_radamesh}", "Chombo", "#{plots_path}-#{"%.2E" % boxsize}-density",
-        "density", "1.e-3", "1.e3", "Log", true, "ZAxis", "50", "1024", "1024")
+      sh "mv #{so_radamesh} #{output_radamesh_final}"
 
-      Rake::Task["visit:pseudocolor_sliced"].invoke(
-        "#{output_radamesh}", "Chombo", "#{plots_path}-#{"%.2E" % boxsize}-temperature",
-        "temperature", "1.e4", "1.e7", "Log", true, "ZAxis", "50", "1024", "1024")
+      Rake::Task["visit:color_slice"].invoke(
+        "#{output_radamesh_final}", "Chombo",
+        "f_HI", "1.e-9", "1.0", "Log",
+        "z", 50,
+        "#{plots_path}-slice-50-f_HI", 1024, 1024)
+      Rake::Task["visit:color_slice"].reenable
 
-      output_sb = "#{sb_path}-#{"%.2E" % boxsize}-surface-brightness.fits"
+      Rake::Task["visit:color_amr_smoothed_projected"].invoke(
+        "#{output_radamesh_final}", "Chombo",
+        "f_HI", "1.e-9", "1.0", "Log",
+        "z",
+        "#{plots_path}-smoothed-projected-f_HI", 1024, 1024)
+      Rake::Task["visit:color_amr_smoothed_projected"].reenable
+
+      output_sb = "#{sb_path}-#{"%.2f" % boxsize}-surface-brightness.fits"
 
       Rake::Task["plotstart:surface_brightness"].invoke(
-        "#{output_radamesh}", "#{output_sb}")
+        "#{output_radamesh_final}", "#{output_sb}")
       Rake::Task["plotstart:surface_brightness"].reenable
 
-      # Placeholder for the fits file
+      Rake::Task["visit:fits"].invoke(
+        "#{output_sb}",
+        "hdu1", "1.e-19", "1.e-15", "Log",
+        "#{plots_path}-surface-brightness", 1024, 1024)
+      Rake::Task["visit:color_slice"].reenable
     end
+
+    p results
   end
 end
