@@ -1,5 +1,5 @@
 require "./../Generic_funcs/log.rb"
-require "./../Generic_funcs/names.rb"
+require "./../Generic_funcs/path.rb"
 
 namespace "radamesh" do |ns|
 
@@ -24,14 +24,14 @@ namespace "radamesh" do |ns|
     @params["runtime"]["VersionID"] = File.basename args.out
     @params["runtime"]["FinalRedshift"] = args.redshift
 
-    paramfile = config_ext args.out
+    paramfile = Path.make_config args.out
     generate_default_parameter_file(paramfile)
 
     if args.check_params
       sh "$EDITOR #{paramfile}"
     end
 
-    logfile = log_ext args.out
+    logfile = Path.make_log args.out
 
     sh "cat #{paramfile} >> #{logfile}"
 

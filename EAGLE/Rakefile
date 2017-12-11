@@ -1,7 +1,7 @@
 require 'matrix'
 require 'parallel'
 require './../Generic_funcs/eagle_api.rb'
-require './../Generic_funcs/names.rb'
+require './../Generic_funcs/path.rb'
 require "./../Generic_funcs/cosmo.rb"
 
 import './../P2C/Rakefile'
@@ -25,7 +25,7 @@ namespace "eagle" do
     dbname = "#{args.simname}_Subhalo"
 
     keys, halos = EagleAPI.get(dbname, args.snapnum, args.passwd,
-                               where = ["SubGroupNumber = 0", "Mass > 1e12"],
+                               where = ["SubGroupNumber = 0", "Mass > 1e11"],
                                orderby = "Mass")
 
     cosmo = Cosmo.new :planck13
@@ -40,12 +40,12 @@ namespace "eagle" do
     sb_dir = "#{EAGLE_RESULT_DIR}/#{args.simname}/#{args.snapdir}/raw_data"
     sh "mkdir -p #{sb_dir}"
 
-    plots_dir = "#{EAGLE_RESULT_DIR}/#{args.simname}/#{args.snapdir}/plots"
+    plots_dir = "#{EAGLE_RESULT_DIR}/#{args.simname}/#{args.snapdir}/halos"
     sh "mkdir -p #{plots_dir}"
 
     redshift = (`python ./read_attrs.py #{first_snap} Header Redshift`).to_f
 
-    results = Parallel.each((0..0), in_processes: 12) do |i|
+    results = Parallel.each((0..60), in_processes: 12) do |i|
       p i
       R_cMpc = 4 * halos[i][keys[:HalfMassRad_DM]].to_f * (1 + redshift) / 1000
 
@@ -61,14 +61,14 @@ namespace "eagle" do
       cut_re = "#{xmax},#{ymax},#{zmax}"
 
       pixel_size_cMpc = MUSE_pixels_cMpc / (1 + 3) * (1 + redshift)
-      grid = 2**(Math.log2(2 * R_cMpc / pixel_size_cMpc).floor)
+      grid = 2**(Math.log2(2 * R_cMpc / pixel_size_cMpc).floor + 1)
 
       npref = 8
 
       sb_path = "#{sb_dir}/#{"%03d" % i}-#{halos[i][keys[:GalaxyID]]}-" \
                 "#{"%.2E" % halos[i][keys[:Mass]].to_f}-#{npref}-#{grid}"
 
-      output_p2c = chombo_ext sb_path
+      output_p2c = Path.make_chombo sb_path
 
       Rake::Task["p2c:run"].invoke(
         "#{inp}", "#{output_p2c}", npref, grid, "#{cut_le}", "#{cut_re}")
@@ -115,7 +115,7 @@ namespace "eagle" do
       Rake::Task["radamesh:run"].reenable
 
       so_radamesh = "#{sb_dir}/SO.#{File.basename output_radamesh}.ts0000"
-      output_radamesh_final = chombo_ext output_radamesh
+      output_radamesh_final = Path.make_chombo output_radamesh
 
       sh "mv #{so_radamesh} #{output_radamesh_final}"
 
