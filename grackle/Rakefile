@@ -1,0 +1,53 @@
+require './../Generic_funcs/path.rb'
+
+namespace 'grackle' do
+  GRACKLE = "grackle"
+  GRACKLE_REPO = "https://bitbucket.org/grackle/grackle"
+
+  desc "Installing grackle library"
+  task :install do
+    self.clone
+
+    sh "cd #{Path.dev}/#{GRACKLE} && ./configure"
+
+    sh "cd #{Path.dev}/#{GRACKLE}/src/clib && make clean"
+
+    self.modify_makefile
+
+    sh "cd #{Path.dev}/#{GRACKLE}/src/clib && make machine-linux-gnu"
+    sh "cd #{Path.dev}/#{GRACKLE}/src/clib && make && make install"
+  end
+
+
+  def self.clone
+    if Dir.exist? "#{Path.dev}/#{GRACKLE}"
+      command = "cd #{Path.dev}/#{GRACKLE}"
+      command += " && hg pull"
+    else
+      command = "mkdir -p #{Path.dev}"
+      command += " && hg clone #{GRACKLE_REPO} #{Path.dev}/#{GRACKLE}"
+    end
+
+    system command
+  end
+
+
+  def self.modify_makefile
+    makefile_path = "#{Path.dev}/#{GRACKLE}/src/clib/Make.mach.linux-gnu"
+
+    makefile = File.read(makefile_path)
+
+    changes = {
+      "HDF5_INSTALL = #{Path.local}" => /HDF5_INSTALL\ =\ \/usr/,
+      "INCLUDE_DIR = #{Path.local}/include" => /INCLUDE_DIR\ =/ ,
+      "LIB_DIR = #{Path.local}/lib" => /LIB_DIR\ =/,
+      "PREFIX = #{Path.local}" => /PREFIX\ =\ \$\(HOME\)\/local/
+    }
+
+    for string, hash in changes do
+      makefile = makefile.gsub(hash, string)
+    end
+
+    File.open(makefile_path, "w") {|file| file.puts makefile }
+  end
+end
