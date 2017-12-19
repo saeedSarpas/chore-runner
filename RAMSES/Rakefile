@@ -1,34 +1,18 @@
 require './../Generic_funcs/path.rb'
-import './ramses_makefile.rb'
+require './ramses.rb'
 
 namespace 'ramses' do
-  RAMSES = 'ramses'.freez
-  RAMSES_GIT = 'https://bitbucket.org/rteyssie/ramses'.freez
+  RAMSES = 'ramses'.freeze
+  RAMSES_GIT = 'https://bitbucket.org/rteyssie/ramses'.freeze
   RAMSES_NDIM = 3
 
-  @params = {
-    nvector: { default: 32, rt: 64 },
-    ndim: RAMSES_NDIM,
-    npre: 8, # Floating-point precision
-    # # of vars of Hyperbolic solver (hydro: >=NDIM+2, mhd: >=8, rhd: >=5)
-    nvar: { hydro: RAMSES_NDIM + 2, mdh: 8, rhd: 5 },
-    nener: 0, # # of energy vars used in hydro or mhd solver
-    solver: { hydro: 'hydro', mhd: 'mhd', rhd: 'rhd' },
-    patch: '',
-    grackle: false,
-    exe: 'ramses',
-    nions: 3, # Ionisation species, HII, HeII, and HeIII
-    ngroups: 4, # Number of photon groups i
-  }
-
-  desc 'Install RAMSES-RT'
-  task :install, [:type, :solver, :patch] do |_, args|
+  desc 'Compiling RAMSEST'
+  task :compile, [:type, :solver, :patch] do |_, args|
     args.with_defaults(type: 'rt', solver: 'hydro', patch: '')
 
-    @params[:patch] = args.patch
-
     clone
-    ramses_makefile("#{Path.dev}/#{RAMSES}/bin/Makefile.new",
+    r = Ramses.new RAMSES_NDIM, args.patch
+    r.makefile("#{Path.dev}/#{RAMSES}/bin/Makefile.new",
       args.type.to_sym, args.solver.to_sym)
 
     sh "cd #{Path.dev}/#{RAMSES}/bin && make -f Makefile.new"
@@ -39,7 +23,7 @@ namespace 'ramses' do
   def self.clone
     if Dir.exist? "#{Path.dev}/#{RAMSES}"
       command = "cd #{Path.dev}/#{RAMSES}"
-      command += " && git pull origin \"$(git_current_branch)\""
+      command += ' && git pull origin \"$(git_current_branch)\"'
     else
       command = "mkdir -p #{Path.dev}"
       command += " && git clone #{RAMSES_GIT} #{Path.dev}/#{RAMSES}"
