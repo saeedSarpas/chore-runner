@@ -3,7 +3,7 @@ unless defined? Ramses
 
   # Generating RAMSES makefile, namelists and patches
   class Ramses
-    def initialize(ndim, patch)
+    def initialize(ndim, patch, ngroups=4)
       @mk = {
         nvector: { default: 32, rt: 64 },
         ndim: ndim,
@@ -16,8 +16,10 @@ unless defined? Ramses
         grackle: false,
         exe: 'ramses',
         nions: 3, # Ionisation species, HII, HeII, and HeIII
-        ngroups: 4, # Number of photon groups
+        ngroups: ngroups # Number of photon groups
       }
+
+      @ngroups = ngroups
     end
 
     def makefile(path, type, solver)

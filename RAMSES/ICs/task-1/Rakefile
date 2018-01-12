@@ -1,0 +1,76 @@
+# High resolution evaporation of cold clumps
+#
+#           +=====+==============+
+#  ---->   ||     |              ||
+#  ---->   ||     |              ||
+#  ---->   ||     |              ||
+#  ---->   ||  1  |      2       ||
+#  ---->   || hot |     cold     ||
+#  ---->   ||     |              ||
+#  ---->   ||     |              ||
+#  ---->   ||     |              ||
+#           +=====+==============+
+#
+# M_halo = 10^12 M_sun
+# R_halo = 100 kpc
+# d_clump = 50 kpc
+# k_B = 8.640 * 10^-9 kpc^2 Myr^-2 K^-1 (m_p)
+#
+# Assumptions:
+# - no gravity
+# - cold clumps are perturbations on top of a hot uniform gas
+# - hot and cold gas are in pressure equilibrium
+# - mu_c = mu_h = 1
+# - T_h = T_vir = (1/3) * (GM / R) * (m_p / k_B) = 1.7 * 10^6 K
+# - T_c = 10^4 K
+# - f_gas = Omega_b / Omega_m = 0.1856
+# - => n_h = 7.5 * 10^-3 cm^-3
+# - => n_c = 1.2 cm^-3
+# - => p_h = 1.10 * 10^-4 Myr^-2 kpc^-1 (m_p)
+# - => p_c = 1.04 * 10^-4 Myr^-2 kpc^-1 (m_p)
+#
+
+require './../../../Generic_funcs/path.rb'
+require './../../../Generic_funcs/fortran_namelist.rb'
+
+namespace 'ramses_rt_task_1' do
+
+  task :run do
+    LEN = 5.0 # kpc
+
+    nml = FortranNamelist.new
+    nml.add_block('RUN_PARAMS',
+      {
+        hydro: '.true.',
+        nrestart: '0',
+        nremap: '10', # Frequency of load balancing (coarse time step)
+        nsubcycle: '10*2',
+        verbose: '.false.',
+        rt: '.true.'
+      })
+
+    nml.add_block('INIT_PARAMS',
+      {
+        nregion: 2,
+        region_type: '2*\'square\'',
+        x_center: "#{LEN * 0.1}, #{LEN * 0.6}",
+        y_center: "#{LEN / 2}, #{LEN / 2}",
+        z_center: "#{LEN / 2}, #{LEN / 2}",
+        length_x: "#{LEN * 0.2}, #{LEN * 0.8}",
+        length_y: "#{LEN}, #{LEN}",
+        length_z: "#{LEN}, #{LEN}",
+        exp_region: '10, 10',
+        d_region: '1.2, 7.5d-3',
+        u_region: '0.0, 0.0',
+        v_region: '0.0, 0.0',
+        p_region: '1.1d-4, 1.1d-4',
+      })
+
+    nml.add_block('UNIT_PARAMS',
+      {
+        units_density: '1.66000d-24', # Protons per cm^3
+        units_time: '3.1556926d13', # Myr
+        units_length: '3.08568025d21' # kpc
+      })
+  end
+end
