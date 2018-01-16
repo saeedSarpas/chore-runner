@@ -15,7 +15,7 @@ class FortranNamelist
   def write(path, blocks = @blocks)
     File.open(path, 'w') do |f|
       blocks.each do |name, vars|
-        f.wirte("&#{name.to_s}\n")
+        f.write("&#{name.to_s}\n")
         vars.each { |k, v| f.write("#{k.to_s}=#{v}\n") }
         f.write("/\n\n")
       end
