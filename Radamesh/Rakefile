@@ -1,6 +1,7 @@
 require "./../Generic_funcs/log.rb"
 require "./../Generic_funcs/path.rb"
 
+
 namespace "radamesh" do |ns|
 
   RADAMESH_VER = 1
@@ -8,57 +9,23 @@ namespace "radamesh" do |ns|
 
   RADAMESH = "Radamesh-#{RADAMESH_VER}.#{RADAMESH_SUBVER}_64"
 
-  desc "Running Radamesh simulation"
-  task :run, [:inp, :out, :boxsize, :redshift, :check_params] do |t,args|
+  desc 'Running "default" Radamesh simulation'
+  task :run_default, [:inp, :out, :boxsize, :redshift, :check_params] do |t,args|
     args.with_defaults(:check_params => FALSE)
 
     if args.inp.nil? or args.out.nil? or args.inp.empty? or args.out.empty?
       error "input and output are mandatory parameters." \
-            " `$ rake \"p2c:run[input,output,...]\"`"
+        " `$ rake \"p2c:run[input,output,...]\"`"
       exit
     end
 
-    @params["snapshot"]["DensityInputFile"] = "\"#{args.inp}\""
-    @params["snapshot"]["ComovingBoxSize"] = args.boxsize
-    @params["snapshot"]["InitialRedshift"] = args.redshift
-    @params["runtime"]["VersionID"] = File.basename args.out
-    @params["runtime"]["FinalRedshift"] = args.redshift
+    p = RadameshParams.new
 
-    paramfile = Path.make_config args.out
-    generate_default_parameter_file(paramfile)
-
-    if args.check_params
-      sh "$EDITOR #{paramfile}"
-    end
-
-    logfile = Path.make_log args.out
-
-    sh "cat #{paramfile} >> #{logfile}"
-
-    sh "cd #{File.split(logfile)[0]} && #{RADAMESH} ./#{File.basename paramfile} | tee -a #{logfile}"
-  end
-
-
-  def generate_default_parameter_file(path)
-    puts path
-    File.open(path, "w") { |f|
-      @params.each do |name,section|
-        f.write("# [#{name}]\n")
-        section.each do |key,value|
-          f.write("#{key} = #{value}\n")
-        end
-        f.write("\n")
-      end
-    }
-  end
-
-
-  @params = {
-    "runtime" => {
+    p.add_block(:runtime, {
       "ActualRun" => ".false.",
-      "VersionID" => "" ,
+      "VersionID" => File.basename(args.out),
       "Verbosity" => "2",
-      "FinalRedshift" => "",
+      "FinalRedshift" => args.redshift.to_s,
       "SimulationTime" => "0",
       "InitCollEq" => ".false.",
       "InitNtrFrac" => "1.",
@@ -70,28 +37,31 @@ namespace "radamesh" do |ns|
       "KeepBKG" => ".false.",
       "StarThr" => "1.e19",
       "MaxNtrFrac" => "0.0",
-    },
-    "species" => {
-      "NSpecies" => "3",
-    },
-    "snapshot" => {
-      "DensityInputFile" => "\"\"",
-      "ComovingBoxSize" => "25.0",
-      "InitialRedshift" => "3.016",
-    },
-    "cosmology" => {
+    })
+
+    p.add_block(:species, {"NSpecies" => "3"})
+
+    p.add_block(:snapshot, {
+      "DensityInputFile" => "\"#{args.inp}\"",
+      "ComovingBoxSize" => args.boxsize.to_s,
+      "InitialRedshift" => args.redshift.to_s,
+    })
+
+    p.add_block(:cosmology, {
       "OmegaBaryonNow" => "0.0482519",
       "OmegaCDMNow" => "0.307",
       "OmegaLambdaNow" => "0.693",
       "HubbleConstNow" => "67.77",
-    },
-    "background" => {
+    })
+
+    p.add_block(:background, {
       "Gamma_BKG" => "0.944E-12 0.557E-12 0.128E-13",
       "HeatR_BKG" => "0.375e-11 0.422e-11 0.178e-12",
       "UVB_SS" => ".true.",
       "UVB_SSThr" => "0.005",
-    },
-    "sources" => {
+    })
+
+    p.add_block(:sources, {
       "NSources" => "1",
       "SourceCoords" => "0.5 0.5 0.5",
       "SpectrumType" => "1",
@@ -99,8 +69,9 @@ namespace "radamesh" do |ns|
       "SpectrumSlope" => "1.57",
       "InitHIIradius" => "1.e-4",
       "OpAngle" => "0.25",
-    },
-    "ray tracing" => {
+    })
+
+    p.add_block(:ray_tracing, {
       "NSpectralRegions" => "3",
       "NSpectralBins" => "10 5 5",
       "MinMaxEnergy" => "1 1.8088 1.8088 4 4 8",
@@ -115,12 +86,29 @@ namespace "radamesh" do |ns|
       "MinTauCell" => "0.1 1.e9 1.e9",
       "ATSFreq" => "5",
       "ATSFact" => "1.e4",
-    },
-    "output" => {
+    })
+
+    p.add_block(:output, {
       "NTimeSteps" => "1",
       "OutputFreqStep" => "0",
       "NOutputs" => "1",
       "OutputTimeStep" => "0",
-    }
-  }
+    })
+
+    path = Path.make_config args.out
+    p.write(path)
+
+    if args.check_params
+      sh "$EDITOR #{path}"
+    end
+
+    logfile = Path.make_log args.out
+
+    command = "cat #{path} >> #{logfile}"
+    command += " && cd #{File.split(logfile)[0]}"
+    command += " && #{RADAMESH} ./#{File.basename paramfile}"
+    command += " | tee -a #{logfile}"
+
+    sh command
+  end
 end

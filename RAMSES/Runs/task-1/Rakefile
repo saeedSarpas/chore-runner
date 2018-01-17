@@ -99,8 +99,8 @@ namespace 'ramses_rt_task_1' do
     })
 
     nml.add_block('AMR_PARAMS', {
-      levelmin: 7,
-      levelmax: 7,
+      levelmin: 6,
+      levelmax: 6,
       ngridtot: '1000000',
       nexpand: 1,
       boxlen: "#{LEN}"
@@ -108,8 +108,10 @@ namespace 'ramses_rt_task_1' do
 
     nml.add_block('OUTPUT_PARAMS', {
       tout: 0,
-      delta_tout: 10, # 10 Myr
-      tend: 1000 # 1 Gyr
+      foutput: 500, # each 500 timesteps
+      # delta_tout: 0.1, # 10 Myr
+      # tend: 100 # 1 Gyr
+      tend: 10
     })
 
 
@@ -141,7 +143,7 @@ namespace 'ramses_rt_task_1' do
       rt_otsa: '.true.', # H/He recombination does not emit ionising radiation
       rt_err_grad_xHII: '0.3',
       rt_err_grad_xHI: '0.3',
-      rt_is_outflow_bound: '.false.',
+      rt_is_outflow_bound: '.true.',
       rt_is_init_xion: '.true.', # Only affects restart simulations
       rt_nsource: 3,
       rt_source_type: '3*\'square\'',

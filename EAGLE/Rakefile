@@ -110,9 +110,9 @@ namespace "eagle" do
 
       output_radamesh = "#{sb_path}-#{"%.2f" % boxsize}-radamesh"
 
-      Rake::Task["radamesh:run"].invoke(
+      Rake::Task["radamesh:run_default"].invoke(
         "#{output_p2c}", "#{output_radamesh}", boxsize, redshift)
-      Rake::Task["radamesh:run"].reenable
+      Rake::Task["radamesh:run_default"].reenable
 
       so_radamesh = "#{sb_dir}/SO.#{File.basename output_radamesh}.ts0000"
       output_radamesh_final = Path.make_chombo output_radamesh
