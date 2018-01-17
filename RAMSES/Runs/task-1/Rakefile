@@ -53,8 +53,8 @@
 #       Generate python file for plotting into plots directory
 
 
-require './../../../Generic_funcs/path.rb'
-require './../../../Generic_funcs/fortran_namelist.rb'
+require './../../../lib/path.rb'
+require './../../../lib/fortran_namelist.rb'
 
 
 namespace 'ramses_rt_task_1' do

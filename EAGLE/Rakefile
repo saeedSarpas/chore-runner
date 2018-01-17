@@ -1,8 +1,8 @@
 require 'matrix'
 require 'parallel'
-require './../Generic_funcs/eagle_api.rb'
-require './../Generic_funcs/path.rb'
-require "./../Generic_funcs/cosmo.rb"
+require './../lib/eagle_api.rb'
+require './../lib/path.rb'
+require "./../lib/cosmo.rb"
 
 import './../P2C/Rakefile'
 import './../Radamesh/Rakefile'
