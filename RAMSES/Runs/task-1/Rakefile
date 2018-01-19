@@ -61,7 +61,8 @@ namespace 'ramses_rt_task_1' do
 
   task :run, [:path, :np] do |_, args|
     args.with_defaults(
-      path: '/net/eos/scratch/saeed/Results/RAMSES-RT/task-1',
+      # path: '/net/eos/scratch/saeed/Results/RAMSES-RT/task-1',
+      path: './',
       np: 36)
 
     LEN = 1.0 # kpc
@@ -95,6 +96,7 @@ namespace 'ramses_rt_task_1' do
       d_region: '0.36, 1.8d-3',
       u_region: '0.0, 0.0',
       v_region: '0.0, 0.0',
+      W_region: '0.0, 0.0',
       p_region: '3.1d-5, 3.1d-5',
     })
 
@@ -108,7 +110,7 @@ namespace 'ramses_rt_task_1' do
 
     nml.add_block('OUTPUT_PARAMS', {
       tout: 0,
-      foutput: 500, # each 500 timesteps
+      foutput: 1000, # each 500 timesteps
       # delta_tout: 0.1, # 10 Myr
       # tend: 100 # 1 Gyr
       tend: 10
@@ -139,6 +141,7 @@ namespace 'ramses_rt_task_1' do
       # also better at maintaining the directionality of radiation
       hll_evals_file: '\'./hll_evals.list\'',
       rt_courant_factor: '0.8',
+      rt_c_fraction: '0.01',
       rt_smooth: '.true.',
       rt_otsa: '.true.', # H/He recombination does not emit ionising radiation
       rt_err_grad_xHII: '0.3',
