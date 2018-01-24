@@ -92,6 +92,51 @@ module Nombre
     end
 
 
+    # Multiplying with a Nombre instance or a scalar
+    # TODO: using coerce to be able to run scalar * Nombre
+    def *(m, mod=1)
+      if m.is_a? (Numeric)
+        new_nombre = Nombre::Generate.new 1
+
+        new_N = new_nombre.instance_variable_get(:@N)
+        new_N[:v] = @N[:v] * m**mod
+        new_N[:u] = @N[:u].dup
+
+        return new_nombre
+      elsif m.is_a? (Nombre::Generate)
+        m_N = m.instance_variable_get(:@N)
+
+        new_nombre = Nombre::Generate.new(Float(@N[:v]) * m_N[:v]**mod)
+        new_N = new_nombre.instance_variable_get(:@N)
+        new_N[:u] = Marshal.load(Marshal.dump(@N[:u]))
+
+        m_N[:u].each do |dim, m_us|
+          m_us.each do |m_u|
+            ix = new_N[:u][dim].find_index do |u|
+              u[:prfx] == m_u[:prfx] and u[:symb] == m_u[:symb]
+            end
+
+            if ix
+              new_N[:u][dim][ix][:pow] += m_u[:pow] * mod
+              new_N[:u][dim].delete_at(ix) if new_N[:u][dim][ix][:pow] == 0
+            else
+              new_N[:u][dim] << Marshal.load(Marshal.dump(m_u.dup))
+              new_N[:u][dim][-1][:pow] *= 1 * mod
+            end
+          end
+        end
+
+        return new_nombre
+      end
+    end
+
+
+    # Dividing by a Nombre instance or a scalar
+    def /(m)
+      self.*(m, -1)
+    end
+
+
 
     private
     def extract_prfx(unit)
