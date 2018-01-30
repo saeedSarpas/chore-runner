@@ -68,7 +68,7 @@ module Nombre
 
 
     # Simplify the unit by canceling similar dimensions (if present)
-    def simplify()
+    def simplify!()
       Dim.each do |dim|
         next if @N[:u][dim].length <= 1
 
@@ -92,23 +92,61 @@ module Nombre
     end
 
 
+    def +(m, mod=1)
+      raise ArgumentError, "Only Nombre number" unless m.is_a?(Nombre::Generate)
+
+      _1st, _2nd = {}, {}
+      m_N = m.instance_variable_get(:@N)
+
+      [[@N, _1st], [m_N, _2nd]].each do |n, meas|
+        n[:u].each do |dim, us|
+          pow, factor = 0, 0
+          us.each do |u|
+            factor += PRFX[u[:prfx]] * U[dim][u[:symb]][:conv]
+            pow += u[:pow]
+          end
+          meas[dim] = {f: factor, p: pow} unless pow == 0
+        end
+      end
+
+      msg = "Arguments must have the same units"
+      Dim.each do |d|
+        raise ArgumentError, msg unless _1st.key?(d) == _2nd.key?(d)
+
+        next unless _1st.key?(d)
+
+        unless _1st[d][:f] == _2nd[d][:f] and _1st[d][:p] == _2nd[d][:p]
+          raise ArgumentError, msg
+        end
+      end
+
+      new_nombre = Nombre::Generate.new @N[:v]
+      new_N = new_nombre.instance_variable_get(:@N)
+      new_N[:u] = Marshal.load(Marshal.dump(@N[:u]))
+      new_N[:v] += m_N[:v] * mod
+
+      return new_nombre
+    end
+
+
+    def -(m)
+      self.+(m, -1)
+    end
+
+
     # Multiplying with a Nombre instance or a scalar
     # TODO: using coerce to be able to run scalar * Nombre
     def *(m, mod=1)
+      new_nombre = Nombre::Generate.new 1
+      new_N = new_nombre.instance_variable_get(:@N)
+      new_N[:u] = Marshal.load(Marshal.dump(@N[:u]))
+
       if m.is_a? (Numeric)
-        new_nombre = Nombre::Generate.new 1
-
-        new_N = new_nombre.instance_variable_get(:@N)
         new_N[:v] = @N[:v] * m**mod
-        new_N[:u] = @N[:u].dup
-
-        return new_nombre
       elsif m.is_a? (Nombre::Generate)
         m_N = m.instance_variable_get(:@N)
 
-        new_nombre = Nombre::Generate.new(Float(@N[:v]) * m_N[:v]**mod)
-        new_N = new_nombre.instance_variable_get(:@N)
-        new_N[:u] = Marshal.load(Marshal.dump(@N[:u]))
+        new_N[:v] = @N[:v] * m_N[:v]**mod
 
         m_N[:u].each do |dim, m_us|
           m_us.each do |m_u|
@@ -125,9 +163,9 @@ module Nombre
             end
           end
         end
-
-        return new_nombre
       end
+
+      return new_nombre
     end
 
 
@@ -136,6 +174,20 @@ module Nombre
       self.*(m, -1)
     end
 
+
+    def **(m)
+      if (m - Integer(m)).abs > 0
+        raise ArgumentError, "Floating point numbers are not accepted as power"
+      end
+
+      new_nombre = Nombre::Generate.new(@N[:v]**m)
+      new_N = new_nombre.instance_variable_get(:@N)
+      new_N[:u] = Marshal.load(Marshal.dump(@N[:u]))
+
+      new_N[:u].each { |_, us| us.each { |u| u[:pow] *= m } }
+
+      return new_nombre
+    end
 
 
     private
