@@ -1,5 +1,5 @@
 unless defined? Ramses
-  require './../Generic_funcs/makefile.rb'
+  require './../lib/makefile.rb'
 
   # Generating RAMSES makefile, namelists and patches
   class Ramses
