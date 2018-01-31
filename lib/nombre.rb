@@ -6,7 +6,7 @@ module Nombre
     # +value+:: value of the number
     # +units+:: units and their powers, e.g. :kg, 1, :m, 1, :s, -2
     def initialize(value, *units_and_powers)
-      @N = { v: value, u: { L: [], M: [], T: [], Th: [] } }
+      @N = { v: value, u: { L: [], M: [], T: [], Th: [], N: [] } }
 
       units_and_powers.each_slice(2) do |unit, pow|
         prfx, symb = extract_prfx unit
@@ -253,6 +253,10 @@ module Nombre
     Th: {
       default: gen_unit(:one, :K, 1),
       K: { conv: 1 }
+    },
+    N: {
+      default: gen_unit(:one, :mol, 1),
+      mol: { conv: 1}
     }
   }
 
@@ -260,7 +264,22 @@ module Nombre
 
 
   DU = { # Derived Units
-    Hz: { T: [gen_unit(:one, :s, -1)] }
+    Hz: { T: [gen_unit(:one, :s, -1)] },
+    J: {
+      M: [gen_unit(:k, :g, 1)],
+      L: [gen_unit(:one, :m, 2)],
+      T: [gen_unit(:one, :s, -2)]
+    },
+    N: {
+      M: [gen_unit(:k, :g, 1)],
+      L: [gen_unit(:one, :m, 1)],
+      T: [gen_unit(:one, :s, -2)]
+    },
+    Pa: {
+      M: [gen_unit(:k, :g, 1)],
+      L: [gen_unit(:one, :m, -1)],
+      T: [gen_unit(:one, :s, -2)]
+    }
   }
 
 
