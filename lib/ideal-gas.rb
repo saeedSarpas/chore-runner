@@ -1,38 +1,54 @@
-import './nombre'
-
-module IdealGas
-
-  class Generate
-    def initialize(p_Pa, n_mol, t_K, mu=1, m_p_kg=1.617e-27, c_v=3.0/2.0)
-
-      @p = p_Pa.is_a? (Nombre::Generate) ? p_Pa : Nombre.new(p_Pa, :Pa, 1)
-      @n = n_mol.is_a? (Nombre::Generate) ? n_mol : Nombre.new(n_mol, :mol, 1)
-      @T = t_K.is_a? (Nombre::Generate) ? t_K : Nombre.new(t_K, :K, 1)
-      @mu = mu.is_a? (Nombre::Generate) ? mu : Nombre.new(mu)
-      @m_p = m_p_kg.is_a? (Nombre::Generate) ? m_p_kg : Nombre.new(m_p_kg, :kg, 1)
-
-      @k_B = Nombre.new 1.381e-23, :J, 1, :K, -1
-      @R = Nombre.new 8.314, :J, 1, :K, -1, :mol, -1
-
-      @c_v = c_v.is_a? (Nombre::Generate) ? c_v : Nombre.new(c_v, :J, 1, :K, -1)
-      @c_p = @c_v + 1
-    end
+require './nombre'
 
 
-    # Internal Energy
-    def U()
-      @c_v * @n * @R * @T
-    end
+class IdealGas
+  # p = n k_B T = rho / (mu * m_H) * k_B T
+  def initialize(p_Pa, rho_kg_m3, t_K, x=0.75, y=0.25, c_v=3.0/2.0)
 
-    def N(n_mol)
-      @n * @R / @k_B
-    end
+    @p = p_Pa.is_a?(Nombre::Generate) ? p_Pa : Nombre.new(p_Pa, :Pa, 1)
+    @rho = rho_kg_m3.is_a?(Nombre::Generate) ? rho_kg_m3 : Nombre.new(rho_kg_m3, :kg, 1, :m, -3)
+    @T = t_K.is_a?(Nombre::Generate) ? t_K : Nombre.new(t_K, :K, 1)
 
-    def gamma()
-      @c_p / @c_v
-    end
+    # Mean molecular mass
+    @mu = Nombre.new(x + 4 * y)
+    @m_H = Nombre.new 1.6737e-27, :kg, 1
+    @m_He = Nombre.new 6.64648e-27, :kg, 1
 
-    def c_sound()
-    end
+
+    # Constants
+    @k_B = Nombre.new 1.38064852e-23, :J, 1, :K, -1
+    @R = Nombre.new 8.3144598, :J, 1, :K, -1, :mol, -1
+
+    # Heat capacities
+    @c_v = c_v.is_a?(Nombre::Generate) ? c_v : Nombre.new(c_v, :J, 1, :K, -1)
+    @c_p = @c_v + 1
+  end
+
+
+  # Internal Energy
+  def U()
+    @c_v * @n * @R * @T
+  end
+
+  # Number of particles
+  def N(volume_m3)
+    self.n() * volume_m3
+  end
+
+  # Number density
+  def n()
+     @rho / @mu / @m_H
+  end
+
+  # Molar mass = R*T*rho / p
+  def M()
+    @R * @T * @rho / @p
+  end
+
+  def gamma()
+    @c_p / @c_v
+  end
+
+  def c_sound()
   end
 end

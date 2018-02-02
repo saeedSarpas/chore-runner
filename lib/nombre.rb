@@ -24,27 +24,30 @@ module Nombre
 
 
     # Returns the value of the number
-    def value
+    def v
       @N[:v]
     end
 
 
     # Returns the unit of the number
-    def unit
-      unit = ""
+    def u
+      unit = "["
       Dim.each do |dim|
         @N[:u][dim].each do |u|
           unit += " #{u[:prfx] if u[:prfx] != :one}#{u[:symb]}^#{u[:pow]}"
         end
       end
-
-      unit
+      unit += " ]"
     end
 
 
     # Convert the unit of the number to a given unit
     def to(*units_and_powers)
-      remove_units()
+      new_nombre = Nombre::Generate.new @N[:v]
+      new_N = new_nombre.instance_variable_get(:@N)
+      new_N[:u] = Marshal.load(Marshal.dump(@N[:u]))
+
+      remove_units(new_N)
 
       units_and_powers.each_slice(2) do |unit, pow|
         prfx, symb = extract_prfx unit
@@ -53,17 +56,19 @@ module Nombre
           next unless U[dim].key? symb
 
           u = Nombre::gen_unit(prfx, symb, pow)
-          @N[:v] /= conv_fact(u)
-          @N[:u][dim] << u
+          new_N[:v] /= conv_fact(u)
+          new_N[:u][dim] << u
         end
 
         DU[symb].each do |dim, us|
           us.each do |u|
-            @N[:v] /= conv_fact(u)
-            @N[:u][dim] << u
+            new_N[:v] /= conv_fact(u)
+            new_N[:u][dim] << u
           end
         end if DU.key? symb
       end
+
+      return new_nombre
     end
 
 
@@ -93,7 +98,12 @@ module Nombre
 
 
     def +(m, mod=1)
-      raise ArgumentError, "Only Nombre number" unless m.is_a?(Nombre::Generate)
+      if m.is_a?(Numeric)
+        new_nombre = Nombre::Generate.new @N[:v] + (m * mod)
+        new_N = new_nombre.instance_variable_get(:@N)
+        new_N[:u] = Marshal.load(Marshal.dump(@N[:u]))
+        return new_nombre
+      end
 
       _1st, _2nd = {}, {}
       m_N = m.instance_variable_get(:@N)
@@ -215,10 +225,10 @@ module Nombre
     end
 
 
-    def remove_units()
+    def remove_units(n)
       Dim.each do |dim|
-        @N[:u][dim].each { |u| @N[:v] *= conv_fact(u) }
-        @N[:u][dim] = []
+        n[:u][dim].each { |u| n[:v] *= conv_fact(u) }
+        n[:u][dim] = []
       end
     end
   end
@@ -243,7 +253,7 @@ module Nombre
     M: {
       default: gen_unit(:k, :g, 1),
       g: { conv: 1 },
-      Msun: { conv: 1.989e30 }
+      Msun: { conv: 1.989e33 } # to gram
     },
     T: {
       default: gen_unit(:one, :s, 1),
@@ -279,6 +289,11 @@ module Nombre
       M: [gen_unit(:k, :g, 1)],
       L: [gen_unit(:one, :m, -1)],
       T: [gen_unit(:one, :s, -2)]
+    },
+    W: {
+      M: [gen_unit(:k, :g, 1)],
+      L: [gen_unit(:one, :m, 2)],
+      T: [gen_unit(:one, :s, -3)]
     }
   }
 

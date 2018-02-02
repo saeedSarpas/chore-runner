@@ -11,7 +11,7 @@ import './../VisIt/Rakefile'
 
 namespace "eagle" do
 
-  EAGLE_SNAP_DIR = "/net/theia/scratch/EAGLE_snapshots"
+  EAGLE_SNAP_DIR = "/net/astrogate/export/astrodata/EAGLE_snapshots"
   EAGLE_RESULT_DIR = "/net/theia/scratch/saeed/Results"
   MUSE_pixels_cMpc = 1.58 * (1 + 3) / 1000 # cMpc at z ~ 3
 
