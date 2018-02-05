@@ -36,6 +36,7 @@ module Nombre
         end
 
         if DU.key? symb
+          # TODO: bug! completely wrong implementation
           DU[symb].each { |dim, units| units.each { |u| @N[:u][dim] << u } }
         end
       end
@@ -220,9 +221,10 @@ module Nombre
 
 
     def **(m)
-      if (m - Integer(m)).abs > 0
-        raise ArgumentError, "Floating point numbers are not accepted as power"
-      end
+      # if m.is_a? (Nombre::Generate)
+      # TODO: check if the units are empty
+      #   m = m.v
+      # end
 
       new_nombre = Nombre::Generate.new(@N[:v]**m)
       new_N = new_nombre.instance_variable_get(:@N)

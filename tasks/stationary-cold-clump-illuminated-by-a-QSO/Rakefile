@@ -12,24 +12,12 @@
 #  ---->   ||     |              ||
 #           +=====+==============+
 #
-# -*- coding: utf-8 -*-
-# M_halo = 10^12 M_sun
-# R_halo = 100 kpc
-# D_clump = 50 kpc
-# k_B = 1.381 * 10^ -23 m^2 kg s^-2 K^-1 = 8.616 * 10^-9 kpc^2 Myr^-2 K^-1 (m_p)
-# G = 6.674 * 10^-11 m^3 kg^-1 s^-2
-# m_p = 1.673 * 10^-27 kg
-# 1 Myr = 3.154 * 10^13 s
-#
 # Assumptions:
 # - no gravity
 # - ideal gas: p = (\rho k_B T) / (\mu m_p)
-# - mu_c = mu_h = 1
-# - cold clumps are perturbations on top of a hot uniform gas
 # - hot and cold gas are in pressure equilibrium
 # - T_h = T_vir = (1/3) * (GM / R) * (m_p / k_B) = 1.737 * 10^6 K
 # - T_c = 10^4 K
-# - f_gas = Omega_b / Omega_m = 0.1856
 # - => n_h = (M_h / ((4/3) π R^3)) * (Ω_b/Ω_m) * (1/m_p) = 1.792 * 10^-3 cm^-3 = 2.999 * 10^-27 g cm^-3
 # - => n_c = 0.3113 cm^-3 = 5.209 * 10^-25 g cm^-3
 # - => p_h = 2.764 * 10^-5 Myr^-2 kpc^-1 (m_p) = 7.104 * 10^-37 cgs
@@ -66,67 +54,77 @@ require_relative './../../lib/cosmo.rb'
 namespace 'task_1' do
 
   # Cosmology
-  planck15 = Cosmo.new :planck15
+  cosmo = Cosmo.new :planck15
+  p "Cosmology: #{cosmo.desc}"
 
   # Halo
   M_halo = Nombre.new 1.0e12, :Msun, 1
   R_halo = Nombre.new 100.0, :kpc, 1
+  p "Halo: M = #{M_halo.v} #{M_halo.u}, R = #{R_halo.v} #{R_halo.u}"
 
   # Clump
   D_clump = Nombre.new 50.0, :kpc, 1
-  X_clump = 0.75
-  Y_clump = 0.25
+  X_clump = Nombre.new 0.75
+  Y_clump = Nombre.new 0.25
+  p "Clump: d = #{D_clump.v} #{D_clump.u}, X = #{X_clump.v}, Y = #{Y_clump.v}"
 
   # Source
-  IonPhotonRate = Nombre.new 2.4e57, :Hz, 1
-  L_912 = Nombre.new  2.74e24, :W, 1 # [Lusso et al. 2015]
+  I_PhRate = Nombre.new 2.4e57, :Hz, 1
+  L_912 = Nombre.new  2.74e24, :W, 1, :Hz, -1 # [Lusso et al. 2015]
   nu_912 = Nombre.new 3.287198e15, :Hz, 1
-  a = Nombre.new(-1.7) # [Lusso et al. 2015]
+  a = -1.7 # [Lusso et al. 2015]
+  p "Souce: L: #{I_PhRate.v} #{I_PhRate.u}"
+  p "L@912A = #{L_912.v} #{L_912.u}, alpha: #{a} [Lusso et al. 2015]"
 
   # Constants
   G = Nombre.new 6.674e-11, :m, 3, :kg, -1, :s, -2
   h = Nombre.new 6.62607004e-34, :kg, 1, :m, 2, :s, -1
   k_B = Nombre.new 1.38064852e-23, :J, 1, :K, -1
-  mu = Nombre.new(X_clump + (4 * Y_clump))
+  mu = X_clump + (Y_clump * 4)
   m_H = Nombre.new 1.67372e-27, :kg, 1
   m_He = Nombre.new 6.64648e-27, :kg, 1
   nu_HI = Nombre.new 3.288467e15, :Hz, 1
   nu_HeI = Nombre.new 5.945839e15, :Hz, 1
   nu_HeII = Nombre.new 1.315870e16, :Hz, 1
+  p 'Constants:'
+  p "- G = #{G.v} #{G.u}"
+  p "- h = #{h.v}, #{h.u}"
+  p "- k_B = #{k_B.v} #{k_B.u}"
+  p "- m_H = #{m_H.v} #{m_H.u}"
+  p "- m_He = #{m_He.v} #{m_He.u}"
 
   # Hot and Cold termo variables
-  f_gas = planck15.Ob / planck15.Om
+  f_gas = cosmo.Ob / cosmo.Om
   T_H = ((G * M_halo / R_halo) * (mu * m_H / k_B) / 3.0).to :K, 1
   T_C = Nombre.new 1.0e4, :K, 1
   n_H = M_halo / (R_halo**3 * (4.0/3) * 3.141592) * f_gas / (mu * m_H)
   n_C = T_H / T_C * n_H
   p_H = n_H * k_B * T_H
   p_C = n_C * k_B * T_C
+  p 'Hot region:'
+  p "- T_H = #{T_H.v} #{T_H.u}"
+  p "- n_H = #{n_H.v} #{n_H.u}"
+  p "- p_H = #{p_H.v} #{p_H.u}"
+  p 'Cold region:'
+  p "- T_C = #{T_C.v} #{T_C.u}"
+  p "- n_C = #{n_C.v} #{n_C.u}"
+  p "- p_C = #{p_C.v} #{p_C.u}"
 
   # Group ionization photon rates
   nu_G1 = Nombre.new 4.557912e15, :Hz, 1
   nu_G2 = Nombre.new 8.482310e15, :Hz, 1
   nu_G3 = Nombre.new 1.587894e16, :Hz, 1
 
-  G1_power = L_912 / (nu_912 * (a.v+1)) * (nu_HeI.v**(a.v+1) - nu_HI.v**(a.v+1))
-  G2_power = L_912 / (nu_912 * (a.v+1)) * (nu_HeII.v**(a.v+1) - nu_HeI.v**(a.v+1))
-  G3_power = L_912 / (nu_912 * (a.v+1)) * (-1 * nu_HeII.v**(a.v+1))
+  L0 = L_912 / (nu_912**a * (a+1))
 
-  G1_IonPhotonRate = G1_power / (h * nu_G1)
-  G2_IonPhotonRate = G2_power / (h * nu_G2)
-  G3_IonPhotonRate = G3_power / (h * nu_G3)
+  G1_I_Ph = L0 * (nu_HeI**(a+1) - nu_HI**(a+1)) / (h * nu_G1)
+  G2_I_Ph = L0 * (nu_HeII**(a+1) - nu_HeI**(a+1)) / (h * nu_G2)
+  G3_I_Ph = L0 * (nu_HeII**(a+1) * -1) / (h * nu_G3)
 
   task :run, [:path, :np] do |_, args|
     args.with_defaults(
       path: '/net/eos/scratch/saeed/Results/task-1/RAMSES-RT',
       np: 36)
-
-    G1_IonPhotonRate.simplify!()
-    G2_IonPhotonRate.simplify!()
-    G3_IonPhotonRate.simplify!()
-    p G1_IonPhotonRate.v
-    p G2_IonPhotonRate.v
-    p G3_IonPhotonRate.v
 
     nml = FortranNamelist.new
     nml.add_block('RUN_PARAMS', {
