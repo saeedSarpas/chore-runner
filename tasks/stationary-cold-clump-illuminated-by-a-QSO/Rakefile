@@ -57,12 +57,16 @@
 #       Generate python file for plotting into plots directory
 
 
-require './../../lib/path.rb'
-require './../../lib/fortran_namelist.rb'
-require './../../lib/nombre.rb'
+require_relative './../../lib/path.rb'
+require_relative './../../lib/fortran_namelist.rb'
+require_relative './../../lib/nombre.rb'
+require_relative './../../lib/cosmo.rb'
 
 
 namespace 'task_1' do
+
+  # Cosmology
+  planck15 = Cosmo.new :planck15
 
   # Halo
   M_halo = Nombre.new 1.0e12, :Msun, 1
@@ -90,15 +94,11 @@ namespace 'task_1' do
   nu_HeI = Nombre.new 5.945839e15, :Hz, 1
   nu_HeII = Nombre.new 1.315870e16, :Hz, 1
 
-  # Cosmology
-  hubble = Nombre.new 0.6774
-  Omega_b = Nombre.new(0.0223 / hubble.v**2)
-  Omega_c = Nombre.new(0.1188 / hubble.v**2)
-
   # Hot and Cold termo variables
+  f_gas = planck15.Ob / planck15.Om
   T_H = ((G * M_halo / R_halo) * (mu * m_H / k_B) / 3.0).to :K, 1
   T_C = Nombre.new 1.0e4, :K, 1
-  n_H = M_halo / (R_halo**3 * (4.0/3) * 3.141592) * (Omega_b / Omega_c) / (mu * m_H)
+  n_H = M_halo / (R_halo**3 * (4.0/3) * 3.141592) * f_gas / (mu * m_H)
   n_C = T_H / T_C * n_H
   p_H = n_H * k_B * T_H
   p_C = n_C * k_B * T_C
@@ -124,6 +124,9 @@ namespace 'task_1' do
     G1_IonPhotonRate.simplify!()
     G2_IonPhotonRate.simplify!()
     G3_IonPhotonRate.simplify!()
+    p G1_IonPhotonRate.v
+    p G2_IonPhotonRate.v
+    p G3_IonPhotonRate.v
 
     nml = FortranNamelist.new
     nml.add_block('RUN_PARAMS', {

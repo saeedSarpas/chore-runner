@@ -271,8 +271,12 @@ module Nombre
   end
 
 
-  def self.new(value, *units)
-    Generate.new value, *units
+  def self.new(value, epsilon=nil, *units)
+    if epsilon.is_a?(Symbol)
+      Generate.new value, nil, epsilon, *units
+    else
+      Generate.new value, epsilon, *units
+    end
   end
 
 
