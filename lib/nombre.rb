@@ -2,11 +2,30 @@ module Nombre
   class Generate
 
     # Initialize a number with its unit
-    # Params:
+    #
+    # ==== Attributes
     # +value+:: value of the number
+    # +epsilon+:: absolute uncertainty(-ies) of the value
     # +units+:: units and their powers, e.g. :kg, 1, :m, 1, :s, -2
-    def initialize(value, *units_and_powers)
-      @N = { v: value, u: { L: [], M: [], T: [], Th: [], N: [] } }
+    #
+    # ==== Examples
+    # > H = Nombre.new 67.48, [0.98], :km, 1, :Mpc, -1, :s, -1
+    # => #<Nombre::Generate:...>
+    def initialize(value, epsilon=nil, *units_and_powers)
+      @N = { v: value, u: { L: [], M: [], T: [], Th: [], N: [] }, e: [0, 0]}
+
+      unless epsilon.nil?
+        case epsilon.length
+        when 0
+          @N[:e] = [0, 0]
+        when 1
+          @N[:e] = [epsilon[0], epsilon[0]]
+        when 2
+          @N[:e] = epsilon
+        else
+          raise ArgumentError, "Don't know how to handle the uncertainties"
+        end
+      end
 
       units_and_powers.each_slice(2) do |unit, pow|
         prfx, symb = extract_prfx unit
@@ -38,6 +57,12 @@ module Nombre
         end
       end
       unit += " ]"
+    end
+
+
+    # Uncertainties
+    def e
+      @N[:e]
     end
 
 
@@ -132,8 +157,12 @@ module Nombre
 
       new_nombre = Nombre::Generate.new @N[:v]
       new_N = new_nombre.instance_variable_get(:@N)
-      new_N[:u] = Marshal.load(Marshal.dump(@N[:u]))
       new_N[:v] += m_N[:v] * mod
+
+      new_N[:u] = Marshal.load(Marshal.dump(@N[:u]))
+
+      new_N[:e] = Marshal.load(Marshal.dump(@N[:e]))
+      [0,1].each { |i| new_N[:e][i] += m_N[:e][i] }
 
       return new_nombre
     end
@@ -149,12 +178,17 @@ module Nombre
     def *(m, mod=1)
       new_nombre = Nombre::Generate.new 1
       new_N = new_nombre.instance_variable_get(:@N)
+
       new_N[:u] = Marshal.load(Marshal.dump(@N[:u]))
+
+      new_N[:e] = Marshal.load(Marshal.dump(@N[:e]))
 
       if m.is_a? (Numeric)
         new_N[:v] = @N[:v] * m**mod
+        [0,1].each { |i| new_N[:e][i] *= m }
       elsif m.is_a? (Nombre::Generate)
         m_N = m.instance_variable_get(:@N)
+        [0,1].each { |i| new_N[:e][i] = m_N[:v] * new_N[:e][i] + new_N[:v] * m_N[:e][i] }
 
         new_N[:v] = @N[:v] * m_N[:v]**mod
 
@@ -195,6 +229,9 @@ module Nombre
       new_N[:u] = Marshal.load(Marshal.dump(@N[:u]))
 
       new_N[:u].each { |_, us| us.each { |u| u[:pow] *= m } }
+
+      new_N[:e] = Marshal.load(Marshal.dump(@N[:e]))
+      [0,1].each { |i| new_N[:e][i] *= m }
 
       return new_nombre
     end
