@@ -35,10 +35,11 @@ module Nombre
           @N[:u][dim] << Nombre::gen_unit(prfx, symb, pow)
         end
 
-        if DU.key? symb
-          # TODO: bug! completely wrong implementation
-          DU[symb].each { |dim, units| units.each { |u| @N[:u][dim] << u } }
-        end
+        DU[symb].each do |d,us|
+          us.each do |u|
+            @N[:u][d] << Nombre::gen_unit(u[:prfx], u[:symb], u[:pow] * pow)
+          end
+        end if DU.key? symb
       end
     end
 
