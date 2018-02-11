@@ -2,14 +2,16 @@
 class RadameshParams
   def initialize
     @blocks = {
-      runtime: {},
-      species: {},
-      snapshot: {},
-      cosmology: {},
-      background: {},
-      sources: {},
-      ray_tracing: {},
-      output: {},
+      # runtime: {},
+      # species: {},
+      # ic: {},
+      # init_evol: {},
+      # snapshot: {},
+      # cosmology: {},
+      # background: {},
+      # sources: {},
+      # ray_tracing: {},
+      # output: {},
     }
   end
 
@@ -26,7 +28,7 @@ class RadameshParams
     File.open(path, 'w') do |f|
       blocks.each do |section, params|
         f.write("##{section}\n")
-        params.each { |k, v| f.write("#{k.to_s}=#{v.to_s}\n") }
+        params.each { |k, v| f.write("#{k.to_s} = #{v.to_s}\n") }
         f.write("\n")
       end
     end

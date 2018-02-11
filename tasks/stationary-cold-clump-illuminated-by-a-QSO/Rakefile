@@ -47,6 +47,7 @@
 
 require_relative './../../lib/path.rb'
 require_relative './../../lib/fortran_namelist.rb'
+require_relative './../../lib/radamesh_params.rb'
 require_relative './../../lib/adad.rb'
 require_relative './../../lib/cosmo.rb'
 
@@ -58,7 +59,7 @@ namespace 'task_1' do
   p "Cosmology: #{cosmo.desc}"
 
   # Halo
-  M_halo = Adad.new 1.0e12, :Msun, 1
+  M_halo = Adad.new 3.16e11, :Msun, 1
   R_halo = Adad.new 100.0, :kpc, 1
   p "Halo: M = #{M_halo.v} #{M_halo.u}, R = #{R_halo.v} #{R_halo.u}"
 
@@ -73,11 +74,12 @@ namespace 'task_1' do
   L_912 = Adad.new  2.74e24, :W, 1, :Hz, -1 # [Lusso et al. 2015]
   nu_912 = Adad.new 3.287198e15, :Hz, 1
   a = -1.7 # [Lusso et al. 2015]
-  p "Souce: L: #{I_PhRate.v} #{I_PhRate.u}"
+  p "Source: L: #{I_PhRate.v} #{I_PhRate.u}"
   p "L@912A = #{L_912.v} #{L_912.u}, alpha: #{a} [Lusso et al. 2015]"
 
   # Geometry
   boxsize = Adad.new 1.0, :kpc, 1
+  basegrid = 128
 
   # Constants
   G = Adad.new 6.674e-11, :m, 3, :kg, -1, :s, -2
@@ -98,20 +100,22 @@ namespace 'task_1' do
 
   # Hot and Cold termo variables
   f_gas = cosmo.Ob / cosmo.Om
-  T_H = ((G * M_halo / R_halo) * (mu * m_H / k_B) / 3.0).to :K, 1
+  T_H = ((G * M_halo / R_halo) * (mu * m_H / k_B) / 3.0).to(:K, 1)
   T_C = Adad.new 1.0e4, :K, 1
-  n_H = M_halo / (R_halo**3 * (4.0/3) * Math::PI) * f_gas / (mu * m_H)
-  n_C = T_H / T_C * n_H
-  p_H = n_H * k_B * T_H
-  p_C = n_C * k_B * T_C
+  n_H = (M_halo / (R_halo**3 * (4.0/3) * Math::PI) * f_gas / (mu * m_H)).to(:cm, -3)
+  n_C = (T_H / T_C * n_H).to(:cm, -3)
+  p_H = (n_H * k_B * T_H / m_H).to(:cm, -3, :kpc, 2, :Myr, -2)
+  p_C = (n_C * k_B * T_C / m_H).to(:cm, -3, :kpc, 2, :Myr, -2)
   p 'Hot region:'
   p "- T_H = #{T_H.v} #{T_H.u}"
-  p "- n_H = #{n_H.v} #{n_H.u}"
+  p "- n_H = #{n_H.to(:cm, -3).v} #{n_H.u}"
   p "- p_H = #{p_H.v} #{p_H.u}"
   p 'Cold region:'
   p "- T_C = #{T_C.v} #{T_C.u}"
-  p "- n_C = #{n_C.v} #{n_C.u}"
+  p "- n_C = #{n_C.to(:cm, -3).v} #{n_C.u}"
   p "- p_C = #{p_C.v} #{p_C.u}"
+
+  MeanBarDen = Adad.new 1.99e-7, :cm, -3
 
   # Group ionization photon rates
   nu_G1 = Adad.new 4.557912e15, :Hz, 1
@@ -125,9 +129,99 @@ namespace 'task_1' do
   dNdt[1] = b0 * (nu_HeII**(a+1) - nu_HeI**(a+1)) / (h * nu_G2)
   dNdt[2] = b0 * (nu_HeII**(a+1) * -1) / (h * nu_G3)
   dNdt.map { |r| r.simplify! }
-  p dNdt
 
-  # Equilibrium T
+
+  task :radamesh, [:path] do |_,args|
+    p "man injam #{args.path}"
+
+    p = RadameshParams.new
+
+    p.set_section(
+      :runtime, {
+        'ActualRun' => '.true.',
+        'VersionID' => "\"RADAMESH-Internal-IC-#{basegrid}-#{"%.3E" % M_halo.v}M_sun\"",
+        'Verbosity' => 2,
+        'SimulationTime' => 2.0,
+        'TimeStepFact' => 0.1,
+        'ClumpingFactor' => 1.0,
+      })
+
+    p.set_section(
+      :cosmology, {
+        'OmegaBaryonNow' => "#{"%.4E" % cosmo.Ob.v}",
+        'OmegaCDMNow' => "#{"%.4E" % cosmo.Ob.v}",
+        'OmegaLambdaNow' => "#{"%.4E" % (1.0 - cosmo.Oc.v)}",
+        'HubbleConstNow' => "#{"%.4E" % cosmo.H0.v}"
+      })
+
+    p.set_section(
+      :ic, {
+        'UniformDensity' => 1,
+        'DensityInputFile' => "\"./IC.chombo.h5\"",
+        'CreateGridType' => "\"UniGrid\"",
+        'GridDimensions' => "#{basegrid} #{basegrid} 1",
+        'MultiUniRegions' => '.true.',
+        'NUniRegions' => 2,
+        'RegLE' => '0. 0. 0.  0.2 0. 0.',
+        'RegRE' => '0.2 1. 1.  1. 1. 1.',
+        'RegDensities' => "#{"%.4E" % (n_H.v/MeanBarDen.v)} #{"%.4E" % (n_C.v/MeanBarDen.v)}",
+        'RegTemperatures' => "#{"%.4E" % T_H.v} #{"%.4E" % T_C.v} # #{T_H.u} #{T_C.u}",
+        'RegNtrFrac' => "0. 1.",
+        'ComovingBoxSize' => "#{"%.4E" % boxsize.to(:Mpc, 1).v} # Mpc",
+        'InitialRedshift' => '0.0',
+      })
+
+    p.set_section(
+      :sources, {
+        'NSources' => 1,
+        'SourceCoords' => '-50.0 0.500001 0.0',
+        'SpectrumType' => '1 # Power law',
+        'TotalIonRate' =>  "#{"%.4E" % Math::log10(I_PhRate.v)}",
+        'SpectrumSlope' => a,
+        'OpAngle' => 0.0,
+        'LightSpeedLimit' => '.false.',
+        'InitHIIradius' => '52.0 # MaxDist',
+      })
+
+    p.set_section(
+      :init_evol, {
+        'DoInitEvol' => '.true.',
+        'InitCollEq' => '.true.',
+      })
+
+    p.set_section(
+      :background, {
+        'InitUVBEq' => '.false.',
+        'UVB_SS' => '.false.',
+        'KeepBKG' => '.false.',
+      })
+
+    p.set_section(
+      :species, {
+        'NSpecies' => 3,
+      })
+
+    p.set_section(
+      :ray_tracing, {
+        'NSpectralRegions' => 3,
+        'NSpectralBins' => '6 5 4',
+        'MinMaxEnergy' => '1 1.8088 1.8088 4 4 8',
+        'NRays' => 5,
+        'MaxTau' => '50 50 50',
+      })
+
+    p.set_section(
+      :output, {
+        'NOutputs' => 2000,
+        'NTimeSteps' => 2000,
+        'OutputFreqStep' => 10,
+      })
+
+    p.write(args.path)
+
+    sh "${EDITOR} #{args.path}"
+  end
+
 
   task :run, [:path, :np] do |_, args|
     args.with_defaults(
