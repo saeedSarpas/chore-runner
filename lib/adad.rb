@@ -23,7 +23,7 @@ module Adad
         when 2
           @A[:e] = epsilon
         else
-          raise ArgumentError, "Don't know how to handle the uncertainties"
+          raise ArgumentError, "Don't know how to handle uncertainties"
         end
       end
 
@@ -57,9 +57,10 @@ module Adad
     # Returns the unit of the number
     def unit
       unit = "["
-      Dim.each do |dim|
-        @A[:u][dim].each do |u|
-          unit += " #{u[:prfx] if u[:prfx] != :one}#{u[:symb]}^#{u[:pow]}"
+      @A[:u].each do |_,us|
+        us.each do |u|
+          unit += " #{u[:prfx] unless u[:prfx] == :one}#{u[:symb]}"
+          unit += "^#{u[:pow]}" unless u[:pow] == 1
         end
       end
       unit += " ]"
@@ -76,13 +77,22 @@ module Adad
     end
 
 
+    # Cloning
+    def clone
+      adad = Adad.new @A[:v]
+      adad.instance_variable_get(:@A)[:u] = Marshal.load(Marshal.dump(@A[:u]))
+      adad.instance_variable_get(:@A)[:e] = Marshal.load(Marshal.dump(@A[:e]))
+      return adad
+    end
+
+
     # Convert the unit of the number to a given unit
     def to(*units_and_powers)
-      new_adad = Adad::Generate.new @A[:v]
-      new_A = new_adad.instance_variable_get(:@A)
-      new_A[:u] = Marshal.load(Marshal.dump(@A[:u]))
+      # TODO: Check if dimensions match
 
-      remove_units(new_A)
+      adad, a = self._clone
+
+      remove_units(a)
 
       units_and_powers.each_slice(2) do |unit, pow|
         prfx, symb = extract_prfx unit
@@ -91,90 +101,63 @@ module Adad
           next unless U[dim].key? symb
 
           u = Adad::gen_unit(prfx, symb, pow)
-          new_A[:v] /= conv_fact(u)
-          new_A[:u][dim] << u
+
+          a[:v] /= conv_fact(u)
+          a[:u][dim] << u
         end
 
-        DU[symb].each do |dim, us|
+        DU[symb].each do |d, us|
           us.each do |u|
-            new_A[:v] /= conv_fact(u)
-            new_A[:u][dim] << Adad::gen_unit(u[:prfx], u[:symb], u[:pow] * pow)
+            a[:v] /= conv_fact(u)
+            a[:u][d] << Adad::gen_unit(u[:prfx], u[:symb], u[:pow] * pow)
           end
         end if DU.key? symb
       end
 
-      return new_adad
+      return adad
     end
 
 
-    # Simplify the unit by canceling similar dimensions (if present)
+    # Simplify units by canceling similar dimensions (if present)
     def simplify!()
       Dim.each do |dim|
         next if @A[:u][dim].length <= 1
 
-        sum_pows = 0
-        @A[:u][dim].each do |u|
-          @A[:v] *= conv_fact(u)
-          sum_pows += u[:pow]
-        end
+        sum_pows = @A[:u][dim].map { |u| u[:pow] }.reduce(:+)
+        @A[:u][dim].each { |u| @A[:v] *= conv_fact(u) }
 
-        if sum_pows == 0
-          @A[:u][dim] = []
-        else
-          def_u = U[dim][:default]
-          @A[:u][dim] = [def_u]
-          @A[:u][dim][0][:pow] = sum_pows
-          @A[:v] /= conv_fact(def_u)
-        end
+        return @A[:u][dim] = [] if sum_pows == 0
+
+        def_u = U[dim][:default]
+        @A[:u][dim] = [Adad::gen_unit(def_u[:prfx], def_u[:symb], sum_pows)]
+        @A[:v] /= conv_fact(def_u)
       end
 
       return
     end
 
 
+    def tot_pow(us)
+      return us.map { |u| u[:pow] }.reduce(:+) || 0
+    end
+
+
+    def same_unit?(us)
+      Dim.each { |d| return false unless tot_pow(@A[:u][d]) == tot_pow(us[d]) }
+    end
+
+
     def +(m, mod=1)
-      if m.is_a?(Numeric)
-        new_adad = Adad::Generate.new @A[:v] + (m * mod)
-        new_A = new_adad.instance_variable_get(:@A)
-        new_A[:u] = Marshal.load(Marshal.dump(@A[:u]))
-        return new_adad
-      end
+      raise ArgumentError unless m.is_a? Adad::Generate
 
-      _1st, _2nd = {}, {}
-      m_A = m.instance_variable_get(:@A)
+      adad, a = self._clone
+      m_a = m.instance_variable_get(:@A)
 
-      [[@A, _1st], [m_A, _2nd]].each do |n, meas|
-        n[:u].each do |dim, us|
-          pow, factor = 0, 0
-          us.each do |u|
-            factor += PRFX[u[:prfx]] * U[dim][u[:symb]][:conv]
-            pow += u[:pow]
-          end
-          meas[dim] = {f: factor, p: pow} unless pow == 0
-        end
-      end
+      raise ArgumentError unless self.same_unit? m_a[:u]
 
-      msg = "Arguments must have the same units"
-      Dim.each do |d|
-        raise ArgumentError, msg unless _1st.key?(d) == _2nd.key?(d)
+      a[:v] += m_a[:v] * _to_SI(m_a[:u]) / _to_SI(@A[:u]) * mod
 
-        next unless _1st.key?(d)
-
-        unless _1st[d][:f] == _2nd[d][:f] and _1st[d][:p] == _2nd[d][:p]
-          raise ArgumentError, msg
-        end
-      end
-
-      new_adad = Adad::Generate.new @A[:v]
-      new_A = new_adad.instance_variable_get(:@A)
-      new_A[:v] += m_A[:v] * mod
-
-      new_A[:u] = Marshal.load(Marshal.dump(@A[:u]))
-
-      new_A[:e] = Marshal.load(Marshal.dump(@A[:e]))
-      [0,1].each { |i| new_A[:e][i] += m_A[:e][i] }
-
-      return new_adad
+      return adad
     end
 
 
@@ -264,7 +247,20 @@ module Adad
     end
 
 
+    # Returns the SI conversion factor
+    def _to_SI(units)
+      units.map { |_,us| us.map { |u| conv_fact(u) } }.flatten.reduce :*
+    end
+
+
+    def _clone
+      adad = self.clone
+      return adad, adad.instance_variable_get(:@A)
+    end
+
+
     def conv_fact(unit)
+
       d = nil
       Dim.each { |dim| d = dim if U[dim].key? unit[:symb] }
       raise ArgumentError, "Unknown unit: #{unit}" unless d
@@ -273,10 +269,10 @@ module Adad
     end
 
 
-    def remove_units(n)
+    def remove_units(a)
       Dim.each do |dim|
-        n[:u][dim].each { |u| n[:v] *= conv_fact(u) }
-        n[:u][dim] = []
+        a[:u][dim].each { |u| a[:v] *= conv_fact(u) }
+        a[:u][dim] = []
       end
     end
   end
@@ -304,21 +300,21 @@ module Adad
     },
     M: {
       default: gen_unit(:k, :g, 1),
-      g: { conv: 1 },
-      Msun: { conv: 1.989e33 } # to gram
+      g: { conv: 0.001 },
+      Msun: { conv: 1.989e30 },
     },
     T: {
       default: gen_unit(:one, :s, 1),
       s: { conv: 1 },
-      yr: { conv: 3.154e7 }
+      yr: { conv: 3.154e7 },
     },
     Th: {
       default: gen_unit(:one, :K, 1),
-      K: { conv: 1 }
+      K: { conv: 1 },
     },
     N: {
       default: gen_unit(:one, :mol, 1),
-      mol: { conv: 1}
+      mol: { conv: 1},
     }
   }
 
