@@ -44,16 +44,19 @@ module Bordar
     # Multiplication of a vector with an Numeric or Adad
     def *(n)
       if n.is_a?(Numeric) or n.is_a?(Adad::Generate)
-        new_bordar = Bordar::Generate.new(@B[:l] * n, [])
-
-        new_B = new_bordar.instance_variable_get(:@B)
-        new_B[:d] = Marshal.load(Marshal.dump(@B[:d]))
-
-        return new_bordar
+        bordar = self.clone
+        bordar.instance_variable_get(:@B)[:l] *= n
+        return bordar
       else
         raise ArgumentError,
               'currently vector multiplication only accepts Adad or Numeric'
       end
+    end
+
+
+    def clone
+      l, d = @B[:l].clone, @B[:d].clone
+      Bordar::Generate.new l, d
     end
   end
 end

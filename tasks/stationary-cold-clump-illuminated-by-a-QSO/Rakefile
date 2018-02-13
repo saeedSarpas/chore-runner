@@ -132,8 +132,6 @@ namespace 'task_1' do
 
 
   task :radamesh, [:path] do |_,args|
-    p "man injam #{args.path}"
-
     p = RadameshParams.new
 
     p.set_section(
@@ -144,6 +142,7 @@ namespace 'task_1' do
         'SimulationTime' => 2.0,
         'TimeStepFact' => 0.1,
         'ClumpingFactor' => 1.0,
+        'MaxTimeStep' => '0.01 # Myr',
       })
 
     p.set_section(
@@ -156,19 +155,21 @@ namespace 'task_1' do
 
     p.set_section(
       :ic, {
-        'UniformDensity' => 1,
         'DensityInputFile' => "\"./IC.chombo.h5\"",
-        'CreateGridType' => "\"UniGrid\"",
         'GridDimensions' => "#{basegrid} #{basegrid} 1",
-        'MultiUniRegions' => '.true.',
-        'NUniRegions' => 2,
+        'MultiUniRegs' => '.true.',
+        'NRegs' => 2,
         'RegLE' => '0. 0. 0.  0.2 0. 0.',
         'RegRE' => '0.2 1. 1.  1. 1. 1.',
-        'RegDensities' => "#{"%.4E" % (n_H.v/MeanBarDen.v)} #{"%.4E" % (n_C.v/MeanBarDen.v)}",
-        'RegTemperatures' => "#{"%.4E" % T_H.v} #{"%.4E" % T_C.v} # #{T_H.u} #{T_C.u}",
+        'RegDens' => "#{"%.4E" % (n_H.v/MeanBarDen.v)} #{"%.4E" % (n_C.v/MeanBarDen.v)}",
+        'RegTemp' => "#{"%.4E" % T_H.v} #{"%.4E" % T_C.v} # #{T_H.u} #{T_C.u}",
         'RegNtrFrac' => "0. 1.",
         'ComovingBoxSize' => "#{"%.4E" % boxsize.to(:Mpc, 1).v} # Mpc",
         'InitialRedshift' => '0.0',
+        'ActiveReg' => '.true.',
+        'ActiveRegX' => "1 #{basegrid}",
+        'ActiveRegY' => "#{basegrid / 2} #{basegrid / 2}",
+        'ActiveRegZ' => "1 1",
       })
 
     p.set_section(

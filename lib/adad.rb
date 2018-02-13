@@ -90,7 +90,7 @@ module Adad
     def to(*units_and_powers)
       # TODO: Check if dimensions match
 
-      adad, a = self._clone
+      adad, a = _clone_self
 
       remove_units(a)
 
@@ -126,40 +126,37 @@ module Adad
         sum_pows = @A[:u][dim].map { |u| u[:pow] }.reduce(:+)
         @A[:u][dim].each { |u| @A[:v] *= conv_fact(u) }
 
-        return @A[:u][dim] = [] if sum_pows == 0
-
-        def_u = U[dim][:default]
-        @A[:u][dim] = [Adad::gen_unit(def_u[:prfx], def_u[:symb], sum_pows)]
-        @A[:v] /= conv_fact(def_u)
+        if sum_pows == 0
+          @A[:u][dim] = []
+        else
+          def_u = U[dim][:default]
+          @A[:u][dim] = [Adad::gen_unit(def_u[:prfx], def_u[:symb], sum_pows)]
+          @A[:v] /= conv_fact(def_u)
+        end
       end
 
-      return
+      return @A[:u]
     end
 
 
-    def tot_pow(us)
-      return us.map { |u| u[:pow] }.reduce(:+) || 0
-    end
-
-
-    def same_unit?(us)
+    def same_dimension?(us)
       Dim.each { |d| return false unless tot_pow(@A[:u][d]) == tot_pow(us[d]) }
     end
 
 
+    # Addition
     def +(m, mod=1)
       raise ArgumentError unless m.is_a? Adad::Generate
 
-      adad, a = self._clone
+      adad, a = _clone_self
       m_a = m.instance_variable_get(:@A)
 
-      raise ArgumentError unless self.same_unit? m_a[:u]
+      raise ArgumentError unless self.same_dimension? m_a[:u]
 
       a[:v] += m_a[:v] * _to_SI(m_a[:u]) / _to_SI(@A[:u]) * mod
 
       return adad
     end
-
 
     def -(m)
       self.+(m, -1)
@@ -169,40 +166,26 @@ module Adad
     # Multiplying with an Adad instance or a scalar
     # TODO: using coerce to be able to run scalar * Adad
     def *(m, mod=1)
-      new_adad = Adad::Generate.new 1
-      new_A = new_adad.instance_variable_get(:@A)
-
-      new_A[:u] = Marshal.load(Marshal.dump(@A[:u]))
-
-      new_A[:e] = Marshal.load(Marshal.dump(@A[:e]))
+      adad, a = _clone_self
 
       if m.is_a? (Numeric)
-        new_A[:v] = @A[:v] * m**mod
-        [0,1].each { |i| new_A[:e][i] *= m }
+        a[:v] *= m**mod
+        [0,1].each { |i| a[:e][i] *= m }
       elsif m.is_a? (Adad::Generate)
         m_A = m.instance_variable_get(:@A)
-        [0,1].each { |i| new_A[:e][i] = m_A[:v] * new_A[:e][i] + new_A[:v] * m_A[:e][i] }
 
-        new_A[:v] = @A[:v] * m_A[:v]**mod
+        [0,1].each { |i| a[:e][i] = m_A[:v] * a[:e][i] + a[:v] * m_A[:e][i] }
 
-        m_A[:u].each do |dim, m_us|
+        a[:v] *= m_A[:v]**mod
+
+        m_A[:u].each do |d, m_us|
           m_us.each do |m_u|
-            ix = new_A[:u][dim].find_index do |u|
-              u[:prfx] == m_u[:prfx] and u[:symb] == m_u[:symb]
-            end
-
-            if ix
-              new_A[:u][dim][ix][:pow] += m_u[:pow] * mod
-              new_A[:u][dim].delete_at(ix) if new_A[:u][dim][ix][:pow] == 0
-            else
-              new_A[:u][dim] << Marshal.load(Marshal.dump(m_u.dup))
-              new_A[:u][dim][-1][:pow] *= 1 * mod
-            end
+            a[:u][d] << Adad::gen_unit(m_u[:prfx], m_u[:symb], m_u[:pow] * mod)
           end
         end
       end
 
-      return new_adad
+      return adad
     end
 
 
@@ -213,28 +196,22 @@ module Adad
 
 
     def **(m)
-      # if m.is_a? (Adad::Generate)
-      # TODO: check if the units are empty
-      #   m = m.v
-      # end
+      raise ArgumentError unless m.is_a? (Numeric)
 
-      new_adad = Adad::Generate.new(@A[:v]**m)
-      new_A = new_adad.instance_variable_get(:@A)
-      new_A[:u] = Marshal.load(Marshal.dump(@A[:u]))
+      adad, a = _clone_self
 
-      new_A[:u].each { |_, us| us.each { |u| u[:pow] *= m } }
+      a **= m
+      a[:u].each { |_, us| us.each { |u| u[:pow] *= m } }
+      [0,1].each { |i| a[:e][i] *= m }
 
-      new_A[:e] = Marshal.load(Marshal.dump(@A[:e]))
-      [0,1].each { |i| new_A[:e][i] *= m }
-
-      return new_adad
+      return adad
     end
 
 
     private
     def extract_prfx(unit)
       return :one, unit if DU.key? unit
-      return :one, unit if unit.to_s.length == 1
+
       Dim.each { |dim| return :one, unit if U[dim].key? unit }
 
       PRFX.keys.each do |p|
@@ -253,19 +230,21 @@ module Adad
     end
 
 
-    def _clone
+    def _clone_self
       adad = self.clone
       return adad, adad.instance_variable_get(:@A)
     end
 
 
+    def tot_pow(units)
+      return units.map { |u| u[:pow] }.reduce(:+) || 0
+    end
+
+
     def conv_fact(unit)
-
-      d = nil
-      Dim.each { |dim| d = dim if U[dim].key? unit[:symb] }
-      raise ArgumentError, "Unknown unit: #{unit}" unless d
-
-      (PRFX[unit[:prfx]] * U[d][unit[:symb]][:conv])**unit[:pow]
+      f = U.values.select{ |u| u.key? unit[:symb]}.first
+      railse ArgumentError, "Unknown unit: #{unit[:symb]}" unless f
+      (PRFX[unit[:prfx]] * f[unit[:symb]][:conv])**unit[:pow]
     end
 
 
