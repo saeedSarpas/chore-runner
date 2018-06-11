@@ -59,7 +59,7 @@ namespace 'task_1' do
   p "Cosmology: #{cosmo.desc}"
 
   # Halo
-  M_halo = Adad.new 3.16e11, :Msun, 1
+  M_halo = Adad.new 1.0e12, :Msun, 1
   R_halo = Adad.new 100.0, :kpc, 1
   p "Halo: M = #{M_halo.v} #{M_halo.u}, R = #{R_halo.v} #{R_halo.u}"
 
